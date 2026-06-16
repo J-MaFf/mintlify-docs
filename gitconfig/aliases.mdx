@@ -1,10 +1,10 @@
 ---
 title: "Git Alias Reference: 40+ Shortcuts for Daily Workflow"
 sidebarTitle: "Aliases"
-description: "Complete reference for all 40+ MAFF Git aliases organised by category, with usage examples and instructions for the interactive TUI alias browser."
+description: "Complete reference for all 40+ of J-MaFf's Git aliases organised by category, with usage examples and instructions for the interactive TUI alias browser."
 ---
 
-The MAFF gitconfig ships more than 40 aliases that cover the full daily Git workflow — from inspecting history and crafting commits, to syncing branches and managing pull requests. Every alias is documented and discoverable through a built-in browser so you never need to memorise them all.
+J-MaFf's gitconfig ships more than 40 aliases that cover the full daily Git workflow — from inspecting history and crafting commits, to syncing branches and managing pull requests. Every alias is documented and discoverable through a built-in browser so you never need to memorise them all.
 
 ## Interactive Alias Browser
 
@@ -16,12 +16,13 @@ git alias --plain  # Prints a static grouped table — good for piping or script
 ```
 
 Inside the browser:
+
 - **Type** to search by alias name or description.
 - **Up / Down arrows** to move through results.
 - **Enter or click** a row to select an alias.
-- **Ctrl+Left / Ctrl+Right** to switch between category tabs.
+- **Ctrl\+Left / Ctrl\+Right** to switch between category tabs.
 - **Esc** to clear the search (or quit if the search box is empty).
-- **Ctrl+C** to quit.
+- **Ctrl\+C** to quit.
 
 When you run `git alias` as a subprocess, selecting an alias copies `git <alias>` to your clipboard. Use **Ctrl-G** instead to have the alias inserted directly at your prompt.
 
@@ -42,7 +43,7 @@ source /path/to/gitconfig/scripts/shell/git-alias-widget.bash   # or .zsh
 ```
 
 <Note>
-If a crashed TUI ever leaves your terminal in an odd state (garbled output or the keybinding stops responding), run `reset` or open a new terminal tab to restore it.
+  If a crashed TUI ever leaves your terminal in an odd state (garbled output or the keybinding stops responding), run `reset` or open a new terminal tab to restore it.
 </Note>
 
 ---
@@ -52,7 +53,7 @@ If a crashed TUI ever leaves your terminal in an odd state (garbled output or th
 Use these aliases to examine repository state, history, and branch activity.
 
 | Alias | Expands To | Description |
-|-------|-----------|-------------|
+| --- | --- | --- |
 | `git s` | `status -sb` | Short, branch-aware working-tree status. |
 | `git lg` | `log --graph --oneline --decorate --all` | Pretty, decorated commit graph across all branches. |
 | `git last` | `log -1 HEAD --stat` | Show the most recent commit with its diffstat. |
@@ -76,7 +77,7 @@ git find "API_KEY"       # When was this string introduced?
 Use these aliases to amend, reword, undo, and park work-in-progress commits.
 
 | Alias | Expands To | Description |
-|-------|-----------|-------------|
+| --- | --- | --- |
 | `git amend` | `commit --amend --no-edit` | Fold staged changes into the last commit, keeping its message. |
 | `git reword` | `commit --amend` | Edit the last commit's message (opens your editor). |
 | `git undo` | `reset --soft HEAD~1` | Undo the last commit but keep its changes staged. |
@@ -100,7 +101,7 @@ git wip                         # Save everything and switch context
 Use these aliases to create branches, sync with remotes, and keep your local history clean.
 
 | Alias | Description |
-|-------|-------------|
+| --- | --- |
 | `git nb <name>` | Create and switch to a new branch (`switch -c`). |
 | `git pushf` | Force-push the current branch safely using `--force-with-lease`. Refuses to clobber others' work. |
 | `git sync` | Update the current branch with `pull --rebase --autostash`. |
@@ -129,7 +130,7 @@ git main --all                  # Update all repos in the current directory
 Use these aliases to interact with GitHub pull requests directly from the terminal. Both require the [`gh` CLI](https://cli.github.com/).
 
 | Alias | Description |
-|-------|-------------|
+| --- | --- |
 | `git pr` | Open the current branch's pull request in the browser. |
 | `git prs` | Show the status of your open pull requests. |
 
@@ -147,7 +148,7 @@ git prs    # See which of your PRs need attention
 Use these aliases to manage the configuration itself.
 
 | Alias | Description |
-|-------|-------------|
+| --- | --- |
 | `git localconfig` | Open `~/.gitconfig.local` in your editor for machine-specific settings. |
 | `git selfupdate` | Pull the gitconfig repository and regenerate `~/.gitconfig` from the template. |
 | `git skill-sync` | Pull the latest commits from the `~/.claude/skills` repository using `--ff-only`. |
@@ -166,5 +167,5 @@ git alias --plain | grep pr # Find all PR-related aliases
 ```
 
 <Note>
-Use `git alias --plain` whenever you need to pipe or grep the alias list. The interactive TUI detects piped output and automatically falls back to the static table, but `--plain` makes the intent explicit and avoids any TTY detection edge cases.
+  Use `git alias --plain` whenever you need to pipe or grep the alias list. The interactive TUI detects piped output and automatically falls back to the static table, but `--plain` makes the intent explicit and avoids any TTY detection edge cases.
 </Note>
