@@ -1,0 +1,170 @@
+---
+title: "Git Alias Reference: 40+ Shortcuts for Daily Workflow"
+sidebarTitle: "Aliases"
+description: "Complete reference for all 40+ MAFF Git aliases organised by category, with usage examples and instructions for the interactive TUI alias browser."
+---
+
+The MAFF gitconfig ships more than 40 aliases that cover the full daily Git workflow — from inspecting history and crafting commits, to syncing branches and managing pull requests. Every alias is documented and discoverable through a built-in browser so you never need to memorise them all.
+
+## Interactive Alias Browser
+
+Run `git alias` in any terminal to open the **interactive TUI browser** — a searchable, categorised interface powered by the `textual` Python package.
+
+```bash
+git alias          # Opens the interactive browser (requires textual + a real terminal)
+git alias --plain  # Prints a static grouped table — good for piping or scripting
+```
+
+Inside the browser:
+- **Type** to search by alias name or description.
+- **Up / Down arrows** to move through results.
+- **Enter or click** a row to select an alias.
+- **Ctrl+Left / Ctrl+Right** to switch between category tabs.
+- **Esc** to clear the search (or quit if the search box is empty).
+- **Ctrl+C** to quit.
+
+When you run `git alias` as a subprocess, selecting an alias copies `git <alias>` to your clipboard. Use **Ctrl-G** instead to have the alias inserted directly at your prompt.
+
+### Ctrl-G Shell Keybinding
+
+The installer adds a `Ctrl-G` keybinding to your shell (bash/zsh) and PowerShell profile. Press `Ctrl-G` at the prompt to open the browser; the alias you pick is typed directly onto your command line, ready to run or edit.
+
+Enable it manually if the installer did not set it up:
+
+```bash
+# bash (~/.bashrc) or zsh (~/.zshrc)
+source /path/to/gitconfig/scripts/shell/git-alias-widget.bash   # or .zsh
+```
+
+```powershell
+# PowerShell ($PROFILE)
+. "C:\path\to\gitconfig\scripts\shell\git-alias-widget.ps1"
+```
+
+<Note>
+If a crashed TUI ever leaves your terminal in an odd state (garbled output or the keybinding stops responding), run `reset` or open a new terminal tab to restore it.
+</Note>
+
+---
+
+## Inspect Aliases
+
+Use these aliases to examine repository state, history, and branch activity.
+
+| Alias | Expands To | Description |
+|-------|-----------|-------------|
+| `git s` | `status -sb` | Short, branch-aware working-tree status. |
+| `git lg` | `log --graph --oneline --decorate --all` | Pretty, decorated commit graph across all branches. |
+| `git last` | `log -1 HEAD --stat` | Show the most recent commit with its diffstat. |
+| `git recent` | `for-each-ref --sort=-committerdate --count=15 ...` | List the 15 most recently committed local branches. |
+| `git find <str>` | `log -S <str>` | Find commits that added or removed a string. |
+
+**Examples:**
+
+```bash
+git s                    # Quick status
+git lg                   # Visual commit graph
+git last                 # What did I just commit?
+git recent               # Which branches have I touched lately?
+git find "API_KEY"       # When was this string introduced?
+```
+
+---
+
+## Commit Aliases
+
+Use these aliases to amend, reword, undo, and park work-in-progress commits.
+
+| Alias | Expands To | Description |
+|-------|-----------|-------------|
+| `git amend` | `commit --amend --no-edit` | Fold staged changes into the last commit, keeping its message. |
+| `git reword` | `commit --amend` | Edit the last commit's message (opens your editor). |
+| `git undo` | `reset --soft HEAD~1` | Undo the last commit but keep its changes staged. |
+| `git unstage <path>` | `reset HEAD -- <path>` | Unstage a file while keeping working-tree changes. |
+| `git wip` | `add -A && commit -m 'WIP' --no-verify` | Park all current work as a WIP commit (skips hooks). |
+
+**Examples:**
+
+```bash
+git add fix.py && git amend     # Add a forgotten file to the last commit
+git reword                      # Fix a typo in the commit message
+git undo                        # Uncommit but keep changes staged
+git unstage src/config.py       # Unstage a specific file
+git wip                         # Save everything and switch context
+```
+
+---
+
+## Branch & Sync Aliases
+
+Use these aliases to create branches, sync with remotes, and keep your local history clean.
+
+| Alias | Description |
+|-------|-------------|
+| `git nb <name>` | Create and switch to a new branch (`switch -c`). |
+| `git pushf` | Force-push the current branch safely using `--force-with-lease`. Refuses to clobber others' work. |
+| `git sync` | Update the current branch with `pull --rebase --autostash`. |
+| `git start <issue#>` | Create a conventionally named branch from a GitHub issue's title. Requires `gh` CLI. |
+| `git branches` | Fetch and track all remote branches locally. |
+| `git cleanup` | Delete local branches whose remote has been deleted. |
+| `git main` | Switch to `main` with fetch, pull, and branch cleanup. |
+| `git main --all` | Run the above for every Git repository in the immediate subdirectories (alias: `-a`). |
+
+**Examples:**
+
+```bash
+git nb feature/dark-mode        # New branch
+git sync                        # Rebase on top of remote, stash/restore local changes
+git pushf                       # Safely force-push after a rebase
+git start 42                    # Create branch from issue #42's title
+git cleanup                     # Remove stale local branches
+git main                        # Return to main, up to date
+git main --all                  # Update all repos in the current directory
+```
+
+---
+
+## GitHub Aliases
+
+Use these aliases to interact with GitHub pull requests directly from the terminal. Both require the [`gh` CLI](https://cli.github.com/).
+
+| Alias | Description |
+|-------|-------------|
+| `git pr` | Open the current branch's pull request in the browser. |
+| `git prs` | Show the status of your open pull requests. |
+
+**Examples:**
+
+```bash
+git pr     # Jump straight to the PR for the branch you're on
+git prs    # See which of your PRs need attention
+```
+
+---
+
+## Maintenance Aliases
+
+Use these aliases to manage the configuration itself.
+
+| Alias | Description |
+|-------|-------------|
+| `git localconfig` | Open `~/.gitconfig.local` in your editor for machine-specific settings. |
+| `git selfupdate` | Pull the gitconfig repository and regenerate `~/.gitconfig` from the template. |
+| `git skill-sync` | Pull the latest commits from the `~/.claude/skills` repository using `--ff-only`. |
+| `git skill-publish` | Publish a new or edited Claude skill via a pull request (branches off `main`, prompts for a commit message, and opens a PR with squash auto-merge). |
+| `git alias` | Open the interactive alias browser (or static table when piped). |
+| `git alias --plain` | Print the static grouped table — pipe-friendly. |
+
+**Examples:**
+
+```bash
+git localconfig             # Add a work email or local safe.directory entry
+git selfupdate              # Apply the latest template changes now
+git skill-sync              # Pull the latest skills without publishing
+git skill-publish           # Open a PR for a new or edited skill
+git alias --plain | grep pr # Find all PR-related aliases
+```
+
+<Note>
+Use `git alias --plain` whenever you need to pipe or grep the alias list. The interactive TUI detects piped output and automatically falls back to the static table, but `--plain` makes the intent explicit and avoids any TTY detection edge cases.
+</Note>

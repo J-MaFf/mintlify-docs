@@ -1,0 +1,111 @@
+---
+title: "Set Up the FlaUI PowerShell Test Harness on Windows"
+sidebarTitle: "Setup"
+description: "Install FlaUI DLLs via NuGet, configure Pester 5, and run the built-in example test to confirm your Windows test environment is ready."
+---
+
+Before you can write or run GUI tests, you need a Windows machine with the right PowerShell version, the FlaUI .NET libraries copied into the repo, and Pester 5 installed. The steps below walk you through everything from cloning the repo to confirming the example test passes.
+
+## Prerequisites
+
+All of the following must be present on the Windows machine where tests will run (your local desktop for local testing, or your VM image for remote testing):
+
+- **Windows 10 or 11** — FlaUI requires the UI Automation APIs that ship with these versions.
+- **PowerShell 7+** (`pwsh`) — the harness uses `pwsh.exe` explicitly when launching scripts under test.
+- **Pester 5** — version 5.0 or later; the configuration API used in `Run-Suite.ps1` is not compatible with Pester 4.
+- **`nuget.exe`** — available from [nuget.org/downloads](https://www.nuget.org/downloads) or via Chocolatey. Used to restore the FlaUI NuGet package.
+
+<Note>
+  If you are setting up a remote VM target, complete these steps on the VM (or bake them into your base snapshot) **before** enabling the `vm` target. The `Sync-SkillToTarget` function copies the `lib/flaui/` DLLs from your local machine to the VM at run time, so the DLLs only need to be on your local machine.
+</Note>
+
+## Setup steps
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone the repo to a local directory on your Windows machine.
+
+    ```powershell
+    git clone https://github.com/J-MaFf/flaui-powershell-tester.git
+    cd flaui-powershell-tester
+    ```
+  </Step>
+
+  <Step title="Restore the FlaUI NuGet package">
+    The FlaUI libraries are not bundled with the repo. Use `nuget.exe` to restore the `FlaUI.UIA3` package, which includes both `FlaUI.Core.dll` and `FlaUI.UIA3.dll`.
+
+    ```powershell
+    nuget install FlaUI.UIA3 -OutputDirectory packages
+    ```
+
+    This creates a `packages/` directory containing versioned subdirectories. Locate the two DLLs — they will be inside a `net` target-framework folder, for example:
+
+    ```
+    packages/FlaUI.Core.x.x.x/lib/netX/FlaUI.Core.dll
+    packages/FlaUI.UIA3.x.x.x/lib/netX/FlaUI.UIA3.dll
+    ```
+  </Step>
+
+  <Step title="Copy the DLLs into lib/flaui/">
+    Create the `lib/flaui/` directory and copy both DLLs into it. `UiTestHelpers.psm1` loads them from exactly these paths at runtime.
+
+    ```powershell
+    New-Item -ItemType Directory -Force -Path lib/flaui
+
+    # Adjust the version numbers to match what nuget restored
+    Copy-Item packages\FlaUI.Core.*\lib\net*\FlaUI.Core.dll lib\flaui\
+    Copy-Item packages\FlaUI.UIA3.*\lib\net*\FlaUI.UIA3.dll lib\flaui\
+    ```
+
+    Verify the files are in place:
+
+    ```powershell
+    Get-ChildItem lib\flaui\
+    # Expected output:
+    #   FlaUI.Core.dll
+    #   FlaUI.UIA3.dll
+    ```
+
+    <Note>
+      `UiTestHelpers.psm1` loads DLLs from `$PSScriptRoot/flaui/FlaUI.Core.dll` and `$PSScriptRoot/flaui/FlaUI.UIA3.dll`. If the NuGet restore places the DLLs at a different path than the glob above matches, adjust the `Copy-Item` source paths accordingly — but always copy the files to `lib/flaui/` so the module can find them.
+    </Note>
+  </Step>
+
+  <Step title="Install Pester 5">
+    If Pester 5 is not already installed, install it from the PowerShell Gallery.
+
+    ```powershell
+    Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force
+    ```
+
+    Confirm the installed version:
+
+    ```powershell
+    Get-Module Pester -ListAvailable | Select-Object Name, Version
+    ```
+  </Step>
+
+  <Step title="Run the example test">
+    Run the built-in example test against `samples/HelloForm.ps1` to confirm the full pipeline works end-to-end.
+
+    ```powershell
+    Import-Module ./lib/UiTestHelpers.psm1 -Force
+    Invoke-Pester ./tests/Example.Tests.ps1
+    ```
+
+    You should see a `HelloForm` form appear briefly on screen, then close. Pester reports two passing tests:
+
+    ```
+    Describing HelloForm
+      [+] greets the name that was typed
+      [+] handles an empty name
+    Tests completed in ...
+    ```
+
+    If either test fails, check that both DLLs are present in `lib/flaui/` and that you are running `pwsh` (PowerShell 7), not `powershell` (Windows PowerShell 5).
+  </Step>
+</Steps>
+
+## What's next
+
+With the harness verified locally, you can start [writing tests for your own scripts](/flaui/writing-tests) or [configure a remote Proxmox VM target](/flaui/remote-vm) for isolated, repeatable test runs.

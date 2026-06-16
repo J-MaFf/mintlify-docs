@@ -1,0 +1,94 @@
+---
+title: "Install Apps on Windows Using the WinGet Setup Script"
+sidebarTitle: "Installation"
+description: "Run a single PowerShell command to deploy the full curated app list on any Windows 10 21H2 or later machine. No manual steps required."
+---
+
+Getting started takes one command. Paste the one-liner into an **elevated** PowerShell or Windows Terminal window and the script downloads, verifies your environment, and installs every app in the curated list. See the note below for how administrator privileges are handled depending on whether you run the one-liner or a locally cloned copy.
+
+<Note>
+  **When running from a cloned repository (Option B):** the script automatically detects whether it is running with administrator privileges. If it is not, it prompts you for elevation and relaunches itself in an elevated session, preferring Windows Terminal when available.
+
+  **When running via the one-liner (Option A):** auto-elevation is not possible because the script has no saved path to relaunch from. If your session is not already elevated, the script will exit with an error and ask you to re-run the command in an elevated PowerShell or Windows Terminal window.
+</Note>
+
+## Prerequisites
+
+Before running the script, confirm your machine meets these requirements:
+
+- **Windows 10 21H2 (build 19044) or later** — Windows 11 is fully supported.
+- **At least 50 GB of free disk space** on the C: drive — the script warns you and asks whether to continue if space is low.
+- **Internet access** — the script must reach `cdn.winget.microsoft.com` on port 443. Installation is blocked if this host is unreachable.
+- **PowerShell execution policy** — the one-liner sets `Unrestricted` for the current process only; nothing is changed system-wide.
+
+## Running the script
+
+<Steps>
+  <Step title="Choose your preferred method">
+    You can run the script directly from GitHub without cloning anything (recommended for quick deployments), or clone the repository first for offline or customized use.
+  </Step>
+
+  <Step title="Option A — Run via one-liner (recommended)">
+    Open an **elevated** PowerShell or Windows Terminal window (right-click → Run as administrator) and paste:
+
+    ```powershell
+    Set-ExecutionPolicy Unrestricted -Scope Process; irm "https://raw.githubusercontent.com/J-MaFf/winget-app-setup/refs/heads/main/winget-app-install.ps1" | iex
+    ```
+
+    The one-liner sets the execution policy for the current process only, downloads the script from GitHub, and immediately runs it. No files are saved to disk beyond what winget installs. Because the script is streamed directly into PowerShell, it cannot relaunch itself as an administrator — you must start the session elevated.
+  </Step>
+
+  <Step title="Option B — Run from a cloned repository">
+    Clone the repository and execute the script from its directory:
+
+    ```powershell
+    git clone https://github.com/J-MaFf/winget-app-setup.git
+    cd winget-app-setup
+    powershell -ExecutionPolicy Unrestricted -File .\winget-app-install.ps1
+    ```
+
+    Running locally enables additional features such as the `-EnableScheduledUpdates` workflow, which copies the helper script into `%APPDATA%` for use by the scheduled task.
+  </Step>
+
+  <Step title="Watch the pre-flight checks run">
+    The script validates three things before touching any apps:
+
+    - **OS version** — warns if your build is older than Windows 10 21H2.
+    - **Disk space** — warns and asks for confirmation if C: has less than 50 GB free.
+    - **Network** — blocks and exits if `cdn.winget.microsoft.com` is unreachable.
+
+    All three results are displayed in a colour-coded table before installation begins.
+  </Step>
+
+  <Step title="Installation proceeds automatically">
+    For each app in the curated list the script:
+
+    1. Checks whether the app is already installed — skips it if so.
+    2. Runs `winget install` with `--accept-source-agreements` and `--accept-package-agreements`.
+    3. Verifies the install succeeded by re-querying `winget list`.
+    4. Retries once automatically if the first attempt fails.
+
+    Progress is printed to the console in real time.
+  </Step>
+
+  <Step title="Windows Terminal is configured">
+    After all apps are installed, the script:
+
+    - Sets **PowerShell 7** as the default profile in your Windows Terminal `settings.json`.
+    - Registers **Windows Terminal** as the default terminal application in the registry under `HKCU:\Console\%%Startup`.
+  </Step>
+
+  <Step title="Review the summary">
+    A formatted table shows every app grouped by status: **Installed**, **Skipped**, **Failed**, and **Updated**. In an interactive session you can view the same data in an `Out-GridView` window when prompted.
+  </Step>
+</Steps>
+
+## Uninstalling
+
+To remove every app in the curated list, run the companion uninstall script from the cloned repository:
+
+```powershell
+powershell -ExecutionPolicy Unrestricted -File .\winget-app-uninstall.ps1
+```
+
+The uninstall script also auto-elevates, checks whether each app is present before attempting removal, and prints a summary when complete. Apps that were not installed are silently skipped.

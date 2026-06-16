@@ -1,0 +1,220 @@
+---
+title: "Network Diagnostics and Discovery PowerShell Scripts"
+sidebarTitle: "Network Tools"
+description: "Scan networks, run audio-alert pings, resolve IPs to hostnames, reset IP stacks, fix RDP disconnects, validate MAC addresses, and configure OpenSSH Server."
+---
+
+The network scripts cover the day-to-day connectivity and troubleshooting tasks that come up in enterprise Windows environments. Each script is standalone — no module import is required unless noted — so you can copy individual files to a target machine or run them directly from the repository.
+
+## Script Reference
+
+| Script | Key Parameters | Description |
+|---|---|---|
+| `Scan-Network.ps1` | — | Simulates a network scan with randomized progress output. Useful for visual testing. |
+| `Ping-WithChime.ps1` | — | Continuously pings a hardcoded target every second and plays an audio beep on each successful reply. Edit `$pingTarget` at the top of the script to set the address. |
+| `Get-ComputersViaIP.ps1` | `-ips` | Resolves one or more IP addresses to hostnames via DNS and returns a sorted table. |
+| `Reset-IPConfig.ps1` | `-computersFilePath` | Runs `ipconfig /release` and `/renew` on a list of remote machines via PsExec. |
+| `Fix-RDP.ps1` | — | Writes a registry key that disables UDP transport for RDP, resolving session-drop issues. |
+| `Test-MacAddress.ps1` | `-MacAddress` | Checks the local ARP cache to determine whether a MAC address is already in use. |
+| `Setup-OpenSSH-Server.ps1` | `-ServerName`, `-Port`, `-Credential` | Installs and configures OpenSSH Server on a local or remote Windows machine. |
+
+---
+
+## Ping-WithChime.ps1
+
+Run a continuous ping loop against any host. A 1000 Hz beep plays on each successful reply so you can monitor connectivity without watching the screen.
+
+Open the script and set the `$pingTarget` variable at the top to the IP address or hostname you want to monitor, then run it directly:
+
+```powershell
+# Edit $pingTarget inside the script first, then run — press Ctrl+C to stop
+.\Scripts\Network\Ping-WithChime.ps1
+```
+
+The script outputs a timestamped line for every attempt:
+
+```
+2025-07-04 09:15:32 - Ping to 192.168.1.1 successful
+2025-07-04 09:15:33 - Ping to 192.168.1.1 successful
+2025-07-04 09:15:34 - Ping to 192.168.1.1 failed
+```
+
+<Tip>
+  Use `Ping-WithChime` during maintenance windows to detect the exact moment a device comes back online after a reboot — the beep saves you from staring at the terminal.
+</Tip>
+
+---
+
+## Get-ComputersViaIP.ps1
+
+Resolves a comma-separated list of IP addresses to their DNS hostnames. Results are returned sorted alphabetically by hostname.
+
+```powershell
+# Resolve a single IP
+Get-ComputersViaIP -ips '10.80.60.169'
+
+# Resolve multiple IPs in one call
+Get-ComputersViaIP -ips '10.80.60.169, 10.80.60.49, 10.80.60.240'
+```
+
+**Example output:**
+
+```
+IP             Hostname
+--             --------
+10.80.60.240   desktopA.contoso.local
+10.80.60.49    laptop07.contoso.local
+10.80.60.169   Not found
+```
+
+<Note>
+  The script uses `Resolve-DnsName` and silently marks any address that does not resolve as `Not found`. Addresses with no PTR record will always appear as `Not found`.
+</Note>
+
+---
+
+## Reset-IPConfig.ps1
+
+Releases and renews IP leases on a list of remote Windows computers using PsExec. Provide a text file with one hostname or IP per line.
+
+```powershell
+# Prepare a computers list file
+# computers.txt:
+#   workstation01
+#   workstation02
+#   10.80.60.50
+
+# Run the reset — the script prompts for credentials
+.\Scripts\Network\Reset-IPConfig.ps1 -computersFilePath 'C:\lists\computers.txt'
+```
+
+The script:
+1. Tests connectivity with `Test-Connection` before touching each machine.
+2. Skips offline machines and logs them as skipped.
+3. Runs `ipconfig /release`, `ipconfig /renew`, and then prints the new IP address for each machine.
+
+<Warning>
+  `Reset-IPConfig` requires **PsExec** (`psexec.exe`) to be available in your `PATH` or the same directory as the script. Resetting a remote machine's IP temporarily disrupts its network connection — plan accordingly.
+</Warning>
+
+---
+
+## Fix-RDP.ps1
+
+Fixes the common issue where RDP sessions disconnect after approximately 65–90 seconds. The script disables UDP transport for the RDP client by writing a DWORD registry value.
+
+```powershell
+# Run on the client machine experiencing the disconnections (requires elevation)
+.\Scripts\Network\Fix-RDP.ps1
+```
+
+The script sets:
+
+```
+HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services\Client
+  fClientDisableUDP = 1 (DWORD)
+```
+
+<Warning>
+  This script modifies `HKLM` and requires an **elevated (Administrator) PowerShell session**. The change takes effect for new RDP sessions — existing sessions are not affected until reconnection.
+</Warning>
+
+---
+
+## Test-MacAddress.ps1
+
+Checks whether a MAC address is already registered in the local ARP neighbor cache. Use this before assigning a static MAC to a virtual machine or network device.
+
+Accepted formats: `XX:XX:XX:XX:XX:XX`, `XX-XX-XX-XX-XX-XX`, `XX.XX.XX.XX.XX.XX`, or `XXXXXXXXXXXX` (no separators).
+
+```powershell
+# Check colon-separated format
+.\Scripts\Network\Test-MacAddress.ps1 -MacAddress '00:11:22:33:44:55'
+
+# Check hyphen-separated format
+.\Scripts\Network\Test-MacAddress.ps1 -MacAddress '00-11-22-33-44-55'
+```
+
+**Exit codes:**
+
+| Code | Meaning |
+|---|---|
+| `0` | MAC address not found in the ARP cache — safe to use |
+| `1` | MAC address is already in use; the conflicting IP is displayed |
+
+```
+# Not in use
+✅ SUCCESS: MAC Address 00:11:22:33:44:55 was not found in your local ARP cache.
+
+# Already in use
+⚠️  WARNING: MAC Address 00:11:22:33:44:55 is already in use by 192.168.1.42
+```
+
+---
+
+## Setup-OpenSSH-Server.ps1
+
+Installs and configures OpenSSH Server on a Windows machine so you can connect via SSH — including from VS Code Remote SSH. The script can target the local machine or a remote server over PowerShell Remoting.
+
+<ParamField path="-ServerName" type="string">
+  Hostname or IP address of the remote machine to configure. When omitted (or when set to `localhost` / the local computer name), the script configures the local machine.
+</ParamField>
+
+<ParamField path="-Port" type="int">
+  The SSH port to listen on. Defaults to `22`.
+</ParamField>
+
+<ParamField path="-Credential" type="PSCredential">
+  PSCredential required when `-ServerName` targets a remote machine. The script prompts for credentials if this is omitted for a remote target.
+</ParamField>
+
+```powershell
+# Configure OpenSSH on the local machine (requires elevation)
+.\Scripts\Network\Setup-OpenSSH-Server.ps1
+
+# Configure OpenSSH on a remote server
+$creds = Get-Credential
+.\Scripts\Network\Setup-OpenSSH-Server.ps1 -ServerName 'fileserver01.contoso.com' -Credential $creds
+
+# Use a non-standard port
+.\Scripts\Network\Setup-OpenSSH-Server.ps1 -ServerName 'fileserver01.contoso.com' -Port 2222 -Credential $creds
+```
+
+The script performs these steps in order:
+
+<Steps>
+  <Step title="Install OpenSSH Server">
+    Checks whether the `OpenSSH.Server` Windows capability is installed and installs it if missing using `Add-WindowsCapability`.
+  </Step>
+  <Step title="Start and auto-start the service">
+    Starts the `sshd` service and sets it to `Automatic` startup, then does the same for the `ssh-agent` service.
+  </Step>
+  <Step title="Configure PowerShell 7 as the default shell">
+    Sets `HKLM:\SOFTWARE\OpenSSH\DefaultShell` to `pwsh.exe` if PowerShell 7 is found at its standard path. Falls back to the system default shell if PowerShell 7 is not installed.
+  </Step>
+  <Step title="Add a firewall rule">
+    Creates an inbound TCP firewall rule named `OpenSSH-Server-In-TCP` for the chosen port if one does not already exist.
+  </Step>
+  <Step title="Display connection details">
+    Prints the server hostname, IP addresses, and example SSH and VS Code Remote SSH configuration snippets.
+  </Step>
+</Steps>
+
+<Warning>
+  This script requires an **elevated (Administrator) PowerShell session**. For remote targets, WinRM must be enabled on the destination machine.
+</Warning>
+
+---
+
+## Scan-Network.ps1
+
+Runs an animated terminal display that mimics a network scan — complete with randomized hex dumps, fake IP scan lines, and simulated error messages. This is a visual/novelty script, not a production network scanner.
+
+```powershell
+# Start the fake scan animation (runs for ~100 iterations by default)
+.\Scripts\Network\Scan-Network.ps1
+```
+
+<Note>
+  `Scan-Network.ps1` does **not** perform any real network activity. It generates fictional output entirely in memory and is safe to run in any environment.
+</Note>

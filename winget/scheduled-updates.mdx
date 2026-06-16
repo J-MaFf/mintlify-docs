@@ -1,0 +1,110 @@
+---
+title: "Automate Windows App Updates Using Scheduled Tasks"
+sidebarTitle: "Scheduled Updates"
+description: "Keep winget-managed apps current with a scheduled task that checks for updates, sends toast notifications, and writes rollback scripts on each run."
+---
+
+The scheduled updates feature creates a Windows Task Scheduler job that automatically checks for — and optionally installs — updates for all winget-managed packages. Each run sends a toast notification with the results, writes a detailed log, and generates a rollback script so you can revert any update that causes problems.
+
+## Enabling scheduled updates
+
+Run the main install script with the `-EnableScheduledUpdates` flag. You can also pass `-AutoInstallUpdates` to have updates installed automatically on every run, and `-UpdateFrequency` to choose between a weekly or daily cadence.
+
+```powershell
+# Enable weekly updates (Sunday 2:00 AM) — prompts to auto-install
+.\winget-app-install.ps1 -EnableScheduledUpdates
+
+# Enable weekly updates and auto-install without prompting
+.\winget-app-install.ps1 -EnableScheduledUpdates -AutoInstallUpdates
+
+# Enable daily updates and auto-install
+.\winget-app-install.ps1 -EnableScheduledUpdates -AutoInstallUpdates -UpdateFrequency Daily
+```
+
+<Tip>
+  Use `-UpdateFrequency Daily` in environments where application security patches need to be applied as quickly as possible, such as public-facing kiosks or shared workstations.
+</Tip>
+
+## What the scheduled task does
+
+The task is registered under the path `\winget-app-setup\` with the name `WingetAppSetup-ScheduledUpdates`. It runs the helper script `Update-InstalledApps.ps1`, which was copied to `%APPDATA%\winget-app-setup\` when you enabled the feature.
+
+Each time the task fires, the helper script:
+
+1. **Reads configuration** from `%APPDATA%\winget-app-setup\update-config.json` to determine whether to auto-install or report only.
+2. **Queries for updates** using the `Microsoft.WinGet.Client` PowerShell module (with a CLI fallback if the module is unavailable).
+3. **Installs updates** if `AutoInstall` is `true` in the configuration, calling `winget upgrade` for each available update.
+4. **Generates a rollback script** capturing the previous version of every package that was updated in this run.
+5. **Sends a Windows toast notification** summarising the number of updates installed or available.
+6. **Writes a detailed log** to `%APPDATA%\winget-app-setup\update-checks\update-check-YYYYMMDD.log`.
+7. **Updates `LastCheckDate`** in the configuration file.
+
+## Schedule defaults
+
+| Setting | Default value |
+|---|---|
+| Frequency | Weekly |
+| Day | Sunday |
+| Time | 2:00 AM |
+| Run only if network available | Yes |
+| Start when available (missed runs) | Yes |
+| Privilege level | Current user (no elevation) |
+
+## Configuration file
+
+The task's behaviour is controlled by a JSON file at:
+
+```
+%APPDATA%\winget-app-setup\update-config.json
+```
+
+A typical configuration file looks like this:
+
+```json
+{
+  "EnabledScheduledUpdates": true,
+  "UpdateFrequency": "Weekly",
+  "AutoInstall": true,
+  "LastCheckDate": "2025-01-19",
+  "Enabled": true,
+  "InitialPromptCompleted": true
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `EnabledScheduledUpdates` | Boolean | Whether the scheduled task is currently active. |
+| `UpdateFrequency` | String | `"Weekly"` or `"Daily"` — the task recurrence. |
+| `AutoInstall` | Boolean | When `true`, updates are installed automatically. When `false`, available updates are logged and notified only. |
+| `LastCheckDate` | String | ISO date of the most recent run (`YYYY-MM-DD`), or `null` if no run has completed yet. |
+| `Enabled` | Boolean | Mirror of `EnabledScheduledUpdates`, used internally by the helper script. |
+| `InitialPromptCompleted` | Boolean | Prevents the first-run setup prompt from appearing on subsequent invocations of the main install script. |
+
+## Rollback scripts
+
+Every time the scheduled task installs one or more updates, it writes a rollback script to:
+
+```
+%APPDATA%\winget-app-setup\rollback-scripts\rollback-YYYYMMDD-HHmmss.ps1
+```
+
+Each script contains a `winget install` command for every package that was updated, pinned to the version that was installed *before* the update. To roll back, run the script in an elevated PowerShell session:
+
+```powershell
+# Example — adjust the filename to match the run you want to revert
+powershell -ExecutionPolicy Bypass -File "$env:APPDATA\winget-app-setup\rollback-scripts\rollback-20250119-020015.ps1"
+```
+
+<Note>
+  Rollback scripts are only generated when updates are successfully installed. If a run reports available updates but `AutoInstall` is `false`, no rollback script is created for that run.
+</Note>
+
+## Disabling scheduled updates
+
+To remove the scheduled task and mark updates as disabled in the configuration file, run:
+
+```powershell
+.\winget-app-install.ps1 -DisableScheduledUpdates
+```
+
+This unregisters `WingetAppSetup-ScheduledUpdates` from Task Scheduler and sets `EnabledScheduledUpdates` and `Enabled` to `false` in `update-config.json`. The helper script and rollback scripts in `%APPDATA%\winget-app-setup\` are left in place so you can re-enable the feature or reference historical rollback scripts at any time.

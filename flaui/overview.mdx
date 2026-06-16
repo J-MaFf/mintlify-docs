@@ -1,0 +1,38 @@
+---
+title: "FlaUI PowerShell Tester: GUI Test Automation for Scripts"
+sidebarTitle: "Overview"
+description: "Automate and regression-test PowerShell GUI scripts using FlaUI and Pester 5, with support for both local desktops and remote Proxmox Windows VMs."
+---
+
+The MAFF PowerShell Toolkit's FlaUI test harness lets you write real, control-level GUI tests for PowerShell scripts — no screen-recording hacks or image comparison required. FlaUI drives WinForms and WPF controls through Windows UI Automation, while Pester 5 provides the assertion and reporting layer you already know.
+
+## What it does
+
+The harness consists of two PowerShell modules and a test runner script that work together:
+
+- **`UiTestHelpers.psm1`** — launches your script under test in a hidden `pwsh` process, finds controls by `AutomationId` or `Name`, clicks buttons, sets text, reads values, and saves failure screenshots.
+- **`TargetManagement.psm1`** — reads `config/targets.json` and runs your Pester suite either in-process (local) or over a WinRM session on a remote Windows VM, with optional Proxmox snapshot revert before each run.
+- **`Run-Suite.ps1`** — a single-command entry point that chains reset → connect → sync → run → report and exits `0` or `1` for CI gating.
+
+Tests follow a simple launch → act → assert → close pattern, and the same test file runs identically whether the target is your local desktop or a freshly-reverted cloud VM.
+
+## When to use it
+
+This harness is the right tool when you need to:
+
+- Verify that a WinForms or WPF script behaves correctly after a code change
+- Run regression tests against GUI scripts as part of a CI pipeline on a self-hosted Windows runner
+- Test against a clean, isolated Windows environment without manually resetting state between runs
+- Capture a failure screenshot automatically when an assertion fails, so you know exactly what the GUI looked like at the moment things broke
+
+<CardGroup cols={3}>
+  <Card title="Setup" icon="wrench" href="/flaui/setup">
+    Install the FlaUI DLLs, Pester 5, and verify the harness works with the example test.
+  </Card>
+  <Card title="Writing Tests" icon="flask" href="/flaui/writing-tests">
+    Learn the full `UiTestHelpers` API and the standard test structure for Pester 5.
+  </Card>
+  <Card title="Remote VM" icon="server" href="/flaui/remote-vm">
+    Configure a Proxmox Windows VM target, set credentials, and run the suite remotely.
+  </Card>
+</CardGroup>

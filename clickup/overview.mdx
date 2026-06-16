@@ -1,0 +1,66 @@
+---
+title: "ClickUp Task Extractor: Export Tasks to Docs and Sheets"
+sidebarTitle: "Overview"
+description: "Fetch ClickUp tasks from any workspace, enrich them with Gemini AI summaries, and export to Markdown, HTML, CSV, or Google Sheets."
+---
+
+The ClickUp Task Extractor is a Python CLI that connects to the ClickUp API, pulls tasks from a workspace and space you specify, and writes the results to a local file or a Google Sheet. You can filter by date range, include completed tasks, run in interactive review mode, and optionally attach one‑sentence AI summaries powered by Google Gemini — all from a single command.
+
+## What it does
+
+- **Export to Markdown, HTML, or CSV** — files land in `output/` with an auto‑generated timestamp in the filename.
+- **AI summaries** — adds a concise 1–2 sentence Gemini‑powered status blurb to every task (optional).
+- **Google Sheets sync** — `kfj_task_extractor.py` writes open tasks straight into a weekly tracking spreadsheet.
+- **Flexible filtering** — narrow results to this week, last week, or all open tasks; optionally include completed and archived work.
+- **Interactive mode** — review each task in the terminal and choose which ones to export before writing to disk.
+- **Secure key management** — resolves API keys from CLI flags, environment variables, or 1Password, with a manual prompt as a last resort.
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/clickup/authentication">
+    How to supply your ClickUp and Gemini API keys via flag, environment variable, or 1Password.
+  </Card>
+  <Card title="Usage" icon="terminal" href="/clickup/usage">
+    All CLI options, output formats, date filters, and the Google Sheets sync script.
+  </Card>
+  <Card title="AI Summaries" icon="sparkles" href="/clickup/ai-summaries">
+    Enable Gemini‑powered task summaries, choose the AI source, and understand model‑tier fallback.
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+You need Python 3.11 or later and a ClickUp API key. Install the core dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
+The `requirements.txt` file in the repo covers all optional features:
+
+| Package | Purpose | Required? |
+|---|---|---|
+| `requests>=2.25.0` | ClickUp API HTTP client | Always |
+| `rich>=14.0.0` | Styled console output | Always |
+| `onepassword-sdk>=0.4.1b1` | 1Password credential retrieval | Optional |
+| `google-genai>=1.0.0` | Gemini AI summaries | Optional |
+| `gspread>=6.1.0` | Google Sheets sync | Optional |
+
+<Note>
+  The CLI automatically relaunches inside `.venv/` when that directory exists, so you do not need to activate the virtual environment manually as long as your dependencies are installed there.
+</Note>
+
+## Quick start
+
+Run the extractor with its defaults — it will prompt you for any settings you do not supply on the command line:
+
+```bash
+python main.py
+```
+
+For a fully non‑interactive run that exports this week's tasks to HTML, pass your key and options directly:
+
+```bash
+python main.py --api-key YOUR_API_KEY --output-format HTML --date-filter ThisWeek
+```
+
+The output file appears in `output/` with a timestamped name such as `WeeklyTaskList_1-8-2025_3-45PM.html`.

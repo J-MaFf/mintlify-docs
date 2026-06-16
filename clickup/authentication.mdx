@@ -1,0 +1,150 @@
+---
+title: "Authenticate the ClickUp Task Extractor with Your API Key"
+sidebarTitle: "Authentication"
+description: "Supply your ClickUp API key via CLI flag, environment variable, or 1Password. The extractor tries each source in order before prompting you."
+---
+
+The extractor resolves your ClickUp API key automatically by working through a priority chain — it checks each source in turn and stops as soon as it finds a valid key. If every automated source fails, it falls back to a secure interactive prompt so you are never locked out.
+
+## Get your ClickUp API key
+
+<Steps>
+  <Step title="Open your ClickUp settings">
+    Click your avatar in the lower‑left corner of the ClickUp web app, then select **Settings**.
+  </Step>
+  <Step title="Navigate to the Apps section">
+    In the left sidebar choose **Apps**. Scroll to the **API Token** section.
+  </Step>
+  <Step title="Copy your token">
+    Click **Generate** if no token exists, then copy the displayed value. Treat this token like a password — it grants full API access to your account.
+  </Step>
+</Steps>
+
+## Provide your key
+
+The extractor checks these sources in the order shown below.
+
+<Tabs>
+  <Tab title="CLI flag">
+    Pass your key directly when you invoke the script. This is the highest‑priority source and overrides everything else:
+
+    ```bash
+    python main.py --api-key YOUR_CLICKUP_API_KEY
+    ```
+
+    <Warning>
+      Do not hardcode your API key in scripts that are committed to version control. Use an environment variable or 1Password for persistent storage.
+    </Warning>
+  </Tab>
+
+  <Tab title="Environment variable">
+    Export `CLICKUP_API_KEY` before running the script. The extractor reads it automatically on every invocation:
+
+    ```bash
+    # macOS / Linux
+    export CLICKUP_API_KEY=YOUR_CLICKUP_API_KEY
+    python main.py
+
+    # Windows PowerShell
+    $env:CLICKUP_API_KEY = "YOUR_CLICKUP_API_KEY"
+    python main.py
+
+    # Windows Command Prompt
+    set CLICKUP_API_KEY=YOUR_CLICKUP_API_KEY
+    python main.py
+    ```
+
+    <Tip>
+      Add the `export` line to your shell profile (e.g. `~/.zshrc` or `~/.bashrc`) so the variable is always present without manual setup.
+    </Tip>
+  </Tab>
+
+  <Tab title="1Password">
+    The extractor integrates with 1Password at three levels, tried in this order:
+
+    **1Password Environment (recommended for teams)**
+
+    Store `CLICKUP_API_KEY` as a variable inside a 1Password Environment, then export its ID:
+
+    ```bash
+    export OP_ENVIRONMENT_ID=YOUR_ENVIRONMENT_ID
+    # Optional: target a specific account
+    export OP_ACCOUNT_NAME=my.1password.com
+    python main.py
+    ```
+
+    The extractor uses the 1Password Python SDK with Desktop App auth first, then falls back to `op environment read` via the CLI.
+
+    **1Password SDK (service accounts / automation)**
+
+    Provide a service account token to resolve vault‑based secret references without the desktop app:
+
+    ```bash
+    export OP_SERVICE_ACCOUNT_TOKEN=YOUR_SERVICE_ACCOUNT_TOKEN
+    python main.py
+    ```
+
+    **1Password CLI**
+
+    If neither of the above is configured, the extractor calls `op read` directly. Make sure the `op` binary is in your `PATH` and your account is signed in:
+
+    ```bash
+    # The extractor resolves a configured vault reference automatically.
+    # Example format: op://VaultName/ItemName/credential
+    python main.py
+    ```
+
+    <Note>
+      If you set `OP_ENVIRONMENT_ID`, the extractor reads from that Environment and does **not** fall through to vault‑based secret references. Remove `OP_ENVIRONMENT_ID` if you want the vault path instead.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Full authentication priority order
+
+| Priority | Source | Requirement |
+|---|---|---|
+| 1 | `--api-key` CLI flag | Key passed at runtime |
+| 2 | `CLICKUP_API_KEY` environment variable | Variable exported in shell |
+| 3 | 1Password Environment (SDK then CLI) | `OP_ENVIRONMENT_ID` set |
+| 4 | 1Password SDK (service account) | `OP_SERVICE_ACCOUNT_TOKEN` set |
+| 5 | 1Password CLI (`op read`) | `op` installed and signed in |
+| 6 | Interactive prompt | Fallback — key entered at runtime |
+
+## Gemini API key (for AI summaries)
+
+When you enable AI summaries with `--ai-summary`, the extractor needs a Google Gemini API key. It uses the exact same priority chain:
+
+<Tabs>
+  <Tab title="CLI flag">
+    ```bash
+    python main.py --ai-summary --gemini-api-key YOUR_GEMINI_API_KEY
+    ```
+  </Tab>
+
+  <Tab title="Environment variable">
+    ```bash
+    export GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+    python main.py --ai-summary
+    ```
+
+    <Note>
+      `GEMINI_API_KEY` is the variable name expected inside a 1Password Environment. The extractor maps the secret name "Gemini API key" to this variable automatically.
+    </Note>
+  </Tab>
+
+  <Tab title="1Password">
+    Store `GEMINI_API_KEY` in the same 1Password Environment as `CLICKUP_API_KEY`. Both keys are loaded in a single authentication step when `OP_ENVIRONMENT_ID` is set:
+
+    ```bash
+    export OP_ENVIRONMENT_ID=YOUR_ENVIRONMENT_ID
+    python main.py --ai-summary
+    ```
+
+    If the Environment method is not configured, the extractor falls back to the configured vault secret reference via the SDK or CLI.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Never hardcode API keys directly in source files or commit them to version control. Use environment variables or a secrets manager such as 1Password.
+</Warning>

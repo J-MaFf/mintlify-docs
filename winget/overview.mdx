@@ -1,0 +1,63 @@
+---
+title: "WinGet App Setup: Automated App Installation for Windows"
+sidebarTitle: "Overview"
+description: "Automate Windows app deployment with a single PowerShell command. WinGet App Setup installs and maintains a curated set of essential business applications."
+---
+
+WinGet App Setup is a PowerShell script that installs, updates, and manages a curated collection of essential Windows applications using the Windows Package Manager (winget). Run a single command and the script handles everything — elevating privileges, trusting sources, checking what's already installed, and silently deploying each app in the list.
+
+## Curated application list
+
+The script installs the following ten applications. Each entry maps to a winget package ID, ensuring exact, reproducible installs every time.
+
+| Application | Winget ID |
+|---|---|
+| 7-Zip | `7zip.7zip` |
+| TightVNC | `GlavSoft.TightVNC` |
+| Adobe Acrobat Reader 64-bit | `Adobe.Acrobat.Reader.64-bit` |
+| Google Chrome | `Google.Chrome` |
+| Google Drive | `Google.GoogleDrive` |
+| Git | `Git.Git` |
+| Bulk Crap Uninstaller | `Klocman.BulkCrapUninstaller` |
+| Dell Command Update (Universal) | `Dell.CommandUpdate.Universal` |
+| PowerShell 7+ | `Microsoft.PowerShell` |
+| Windows Terminal | `Microsoft.WindowsTerminal` |
+
+## How it works
+
+<CardGroup cols={2}>
+  <Card title="Auto-elevation" icon="shield-check">
+    If you launch the script without administrator privileges, it automatically prompts for elevation and relaunches in an elevated session — preferring Windows Terminal when available.
+  </Card>
+  <Card title="Smart install" icon="circle-check">
+    Before installing each app, the script checks whether it is already present. Apps that are already installed are skipped, so re-running the script is always safe.
+  </Card>
+  <Card title="Retry logic" icon="rotate">
+    If an installation fails on the first attempt, the script automatically retries it once before marking it as failed, reducing transient error noise on slower networks.
+  </Card>
+  <Card title="Windows Terminal config" icon="terminal">
+    After installation, the script sets PowerShell 7 as the default Windows Terminal profile and registers Windows Terminal as the default terminal application via the registry.
+  </Card>
+</CardGroup>
+
+## Source verification
+
+Before any installation begins, the script verifies that the `winget` and `msstore` sources are trusted and functional. If a source is missing or its data is corrupted, the script attempts an automatic repair by running `winget source reset` and re-registering the source package from the Microsoft CDN.
+
+## Post-install summary
+
+When the run completes, the script displays a formatted summary table listing every app by status: **Installed**, **Skipped** (already present), **Failed**, and **Updated**. In interactive sessions you can also opt in to viewing the summary in an `Out-GridView` window.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="rocket" href="/winget/installation">
+    Run the one-liner or clone the repo and execute the script locally.
+  </Card>
+  <Card title="Parameters" icon="sliders" href="/winget/parameters">
+    Explore dry-run mode, update options, and all available flags.
+  </Card>
+  <Card title="Scheduled Updates" icon="calendar" href="/winget/scheduled-updates">
+    Keep every installed app current with an automated weekly or daily task.
+  </Card>
+</CardGroup>

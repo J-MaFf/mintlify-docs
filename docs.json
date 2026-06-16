@@ -1,0 +1,86 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "MAFF",
+  "theme": "aspen",
+  "favicon": "https://media.brand.dev/44cd3482-2543-4485-8447-80822e8bdceb.jpg",
+  "colors": {
+    "primary": "#b21414",
+    "light": "#d98888",
+    "dark": "#585858"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/J-MaFf"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "WinGet App Setup",
+            "pages": [
+              "winget/overview",
+              "winget/installation",
+              "winget/parameters",
+              "winget/scheduled-updates"
+            ]
+          },
+          {
+            "group": "PowerShell Scripts",
+            "pages": [
+              "powershell/overview",
+              "powershell/active-directory",
+              "powershell/date-region-formats",
+              "powershell/network-tools",
+              "powershell/printer-management"
+            ]
+          },
+          {
+            "group": "ClickUp Task Extractor",
+            "pages": [
+              "clickup/overview",
+              "clickup/authentication",
+              "clickup/usage",
+              "clickup/ai-summaries"
+            ]
+          },
+          {
+            "group": "FlaUI PowerShell Tester",
+            "pages": [
+              "flaui/overview",
+              "flaui/setup",
+              "flaui/writing-tests",
+              "flaui/remote-vm"
+            ]
+          },
+          {
+            "group": "Git Config",
+            "pages": [
+              "gitconfig/overview",
+              "gitconfig/installation",
+              "gitconfig/aliases"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/winget-issues",
+              "troubleshooting/ad-issues",
+              "troubleshooting/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

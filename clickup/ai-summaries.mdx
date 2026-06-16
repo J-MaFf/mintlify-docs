@@ -1,0 +1,120 @@
+---
+title: "Generate AI Summaries for ClickUp Tasks with Gemini"
+sidebarTitle: "AI Summaries"
+description: "Use Google Gemini to add concise 1–2 sentence status summaries to each exported ClickUp task, with automatic retry, backoff, and rate-limit handling."
+---
+
+When you enable AI summaries, the extractor sends each task's fields to Google Gemini and appends a concise 1–2 sentence status blurb in the first person (e.g. "I completed the initial review and need to address two open comments."). Summaries are written into the `Notes` column of your export. The feature is entirely optional and gracefully falls back to the task's original content if the API is unavailable.
+
+## Prerequisites
+
+You need:
+
+- A **Google Gemini API key** — get one at [aistudio.google.com](https://aistudio.google.com).
+- The **`google-genai`** package, included in `requirements.txt`:
+
+```bash
+pip install google-genai>=1.0.0
+```
+
+See [Authentication](/clickup/authentication#gemini-api-key-for-ai-summaries) for the full list of ways to supply your Gemini key.
+
+## Enable AI summaries
+
+Add `--ai-summary` to any `main.py` invocation. Supply the Gemini key via flag or let the extractor load it automatically:
+
+```bash
+# Key via flag
+python main.py --ai-summary --gemini-api-key YOUR_GEMINI_API_KEY
+
+# Key from environment variable
+export GEMINI_API_KEY=YOUR_GEMINI_API_KEY
+python main.py --ai-summary
+
+# Key from 1Password (OP_ENVIRONMENT_ID must be set)
+python main.py --ai-summary
+```
+
+If you run without `--ai-summary`, the extractor prompts you interactively at startup and lets you enable it there instead.
+
+<Note>
+  If you enable `--ai-summary` but do not provide a Gemini key through any source, the extractor prompts for it at runtime. Pressing Enter without typing a key disables AI summaries for that run.
+</Note>
+
+## Choose the AI source
+
+Use `--ai-source` to control which AI backend generates the summary text.
+
+<ParamField path="--ai-source" type="string" default="Both">
+  Accepted values: `Both`, `ClickUp`, `Gemini`.
+</ParamField>
+
+| Value | Behaviour |
+|---|---|
+| `Both` (default) | Reads the ClickUp AI custom field ("Summary") first. If the field is empty or missing, generates a summary with Gemini. |
+| `ClickUp` | Uses only the ClickUp AI custom field. No Gemini calls are made and no Gemini key is required. |
+| `Gemini` | Calls Gemini for every task regardless of the ClickUp AI field. |
+
+```bash
+# Use the ClickUp AI field only — no Gemini key needed
+python main.py --ai-summary --ai-source ClickUp
+
+# Force Gemini for every task
+python main.py --ai-summary --ai-source Gemini --gemini-api-key YOUR_KEY
+
+# Default: ClickUp field when available, Gemini as fallback
+python main.py --ai-summary --ai-source Both
+```
+
+## Model
+
+The extractor uses `gemini-flash-lite-latest` for all AI summary generation. This resolves to the latest available Flash Lite model in your Gemini API region.
+
+Rate limits are detected via HTTP `429` responses, `RESOURCE_EXHAUSTED` errors, and keywords such as `quota`, `rate limit`, `rpm`, and `overload` in the error message (case‑insensitive).
+
+## Rate limit handling
+
+When a rate limit is hit, the extractor responds automatically — you do not need to do anything:
+
+<Steps>
+  <Step title="Exponential backoff with retry">
+    On a rate limit error the extractor waits `initial_delay × 2^attempt` seconds and retries up to two times before giving up on that task. You see a message like:
+
+    ```
+    ⏳ Rate limit hit. Waiting 2s before retry (attempt 1/3)...
+    ✅ Wait complete - retrying API call...
+    ```
+  </Step>
+  <Step title="Session-level skip after exhausted retries">
+    If all retries are exhausted, the extractor sets a session flag and skips AI summaries for the rest of the run without making further API calls:
+
+    ```
+    [⊘] API rate limited - skipping AI summary for: Task Name
+    ```
+
+    Tasks that are skipped retain their original field content.
+  </Step>
+  <Step title="Graceful fallback">
+    If the `google-genai` SDK is not installed, the Gemini key is missing, or the API fails with a non-retryable error, the extractor falls back to the task's original description and notes. Your export always completes even if AI generation is entirely unavailable.
+  </Step>
+</Steps>
+
+<Tip>
+  Run with `--ai-source ClickUp` during development and testing to avoid consuming Gemini quota while iterating on other settings.
+</Tip>
+
+## Example commands
+
+```bash
+# Minimal: enable AI with a key passed directly
+python main.py --ai-summary --gemini-api-key YOUR_KEY
+
+# Both sources, HTML output, this week only
+python main.py --ai-summary --ai-source Both --output-format HTML --date-filter ThisWeek
+
+# Gemini only, Markdown output, all open tasks
+python main.py --ai-summary --ai-source Gemini --gemini-api-key YOUR_KEY --output-format Markdown
+
+# ClickUp AI field only — no Gemini key required
+python main.py --ai-summary --ai-source ClickUp
+```

@@ -1,0 +1,248 @@
+---
+title: "Standardize Windows Date and Region Formats Remotely"
+sidebarTitle: "Date & Region"
+description: "Read and enforce Windows short date formats and region locale settings across all user profiles on remote servers using PowerShell Remoting."
+---
+
+Inconsistent date and region settings cause reporting tools — including Crystal Reports — to display data in unexpected formats or the wrong language. The date and region scripts connect to your Windows servers over PowerShell Remoting, read or write the relevant registry values under each user's hive, and export a timestamped CSV so you have an audit trail of every change.
+
+Both script families rely on the **RegistryUtils** module, which is imported automatically. You do not need to import it manually before running these scripts.
+
+<Note>
+  All scripts use **PowerShell Remoting (WS-Man)** to reach remote servers. Run `Enable-PSRemoting -Force` on each target machine if remoting is not already configured.
+</Note>
+
+---
+
+## Date Format Scripts
+
+The date format scripts read and write the `sShortDate` registry value under each user's `HKCU\Control Panel\International` hive. Results are exported to `Output\DateFormats\` with a timestamped filename.
+
+### Get-UserDateFormats.ps1
+
+Retrieves the current short date format for every user profile on one or more remote servers.
+
+<ParamField path="-Servers" type="string[]">
+  Array of server IP addresses or hostnames to query. Defaults to the configured target server — pass one or more values explicitly to target specific machines.
+</ParamField>
+
+<ParamField path="-TargetUsers" type="string[]">
+  Limit processing to specific usernames. Takes precedence over `-UserListFile` when both are supplied.
+</ParamField>
+
+<ParamField path="-UserListFile" type="string">
+  Path to a `.txt` file (one username per line) or a `.csv` file (username column auto-detected) to drive the user list.
+</ParamField>
+
+<ParamField path="-Credential" type="PSCredential">
+  Pre-captured `PSCredential`. When omitted, the script falls back to 1Password (`OP_KFI_USERNAME` / `OP_KGS_USERNAME`) and then prompts interactively.
+</ParamField>
+
+```powershell
+# Audit all users on the default server
+$creds = Get-Credential -UserName 'DOMAIN\admin-username'
+.\Scripts\iKAT\Registry\DateFormat\Get-UserDateFormats.ps1 -Credential $creds
+
+# Target specific users
+.\Scripts\iKAT\Registry\DateFormat\Get-UserDateFormats.ps1 `
+    -TargetUsers @('jsmith', 'adoe') `
+    -Credential $creds
+
+# Drive the user list from a file
+.\Scripts\iKAT\Registry\DateFormat\Get-UserDateFormats.ps1 `
+    -UserListFile 'C:\lists\users.txt' `
+    -Credential $creds
+
+# Query multiple servers at once
+.\Scripts\iKAT\Registry\DateFormat\Get-UserDateFormats.ps1 `
+    -Servers @('<server-ip-1>', '<server-ip-2>') `
+    -Credential $creds
+```
+
+<Note>
+  Output is always written to a timestamped CSV under `%USERPROFILE%\Documents\Scripts\PowerShellScripts\Output\DateFormats\`. The script creates the directory automatically if it does not exist.
+</Note>
+
+---
+
+### Set-UserDateFormats.ps1
+
+Applies a short date format string to every targeted user profile on one or more remote servers. The `-DateFormat` parameter is required.
+
+<ParamField path="-DateFormat" type="string" required>
+  The format string to apply to all targeted users (e.g., `M/d/yyyy`, `yyyy-MM-dd`). See the format table below.
+</ParamField>
+
+<ParamField path="-Servers" type="string[]">
+  Array of server IP addresses or hostnames. Defaults to the configured target server — pass values explicitly to target specific machines.
+</ParamField>
+
+<ParamField path="-TargetUsers" type="string[]">
+  Limit changes to specific usernames.
+</ParamField>
+
+<ParamField path="-UserListFile" type="string">
+  Path to a `.txt` or `.csv` file containing the usernames to update.
+</ParamField>
+
+<ParamField path="-Credential" type="PSCredential">
+  Pre-captured `PSCredential` for remote authentication.
+</ParamField>
+
+```powershell
+# Set M/d/yyyy for all users on the default server
+$creds = Get-Credential -UserName 'DOMAIN\admin-username'
+.\Scripts\iKAT\Registry\DateFormat\Set-UserDateFormats.ps1 `
+    -DateFormat 'M/d/yyyy' `
+    -Credential $creds
+
+# Apply ISO format to specific users only
+.\Scripts\iKAT\Registry\DateFormat\Set-UserDateFormats.ps1 `
+    -DateFormat 'yyyy-MM-dd' `
+    -TargetUsers @('jsmith', 'adoe') `
+    -Credential $creds
+
+# Bulk update from a user list file
+.\Scripts\iKAT\Registry\DateFormat\Set-UserDateFormats.ps1 `
+    -DateFormat 'dd/MM/yyyy' `
+    -UserListFile 'C:\lists\users.txt' `
+    -Credential $creds
+```
+
+### Common Date Format Strings
+
+| Format String | Example Output | Common Use |
+|---|---|---|
+| `M/d/yyyy` | 7/4/2025 | US short date (month/day) |
+| `MM/dd/yyyy` | 07/04/2025 | US padded short date |
+| `dd/MM/yyyy` | 04/07/2025 | European short date (day/month) |
+| `yyyy-MM-dd` | 2025-07-04 | ISO 8601 / database-friendly |
+
+---
+
+## Region Format Scripts
+
+The region format scripts read and write the `LocaleName` registry value, which maps to the **Windows Settings → Region → Format** dropdown. Changing this value affects how applications — including Crystal Reports — format numbers, dates, and currency strings for a given user session.
+
+Results are exported to `Output\RegionFormats\` with a timestamped filename.
+
+### Get-UserRegionFormats.ps1
+
+Retrieves the current region locale code for every user profile on one or more remote servers.
+
+<ParamField path="-Servers" type="string[]">
+  Array of server IP addresses or hostnames to query. Defaults to the configured target server.
+</ParamField>
+
+<ParamField path="-TargetUsers" type="string[]">
+  Limit processing to specific usernames. Use `@('Default')` to read the Default User profile. Takes precedence over `-UserListFile` when both are supplied.
+</ParamField>
+
+<ParamField path="-UserListFile" type="string">
+  Path to a `.txt` file (one username per line) or a `.csv` file (username column auto-detected) to drive the user list.
+</ParamField>
+
+<ParamField path="-Credential" type="PSCredential">
+  Pre-captured `PSCredential`. When omitted, the script falls back to 1Password (`OP_KFI_USERNAME` / `OP_KGS_USERNAME`) and then prompts interactively.
+</ParamField>
+
+```powershell
+# Audit all users on the default server
+$creds = Get-Credential -UserName 'DOMAIN\admin-username'
+.\Scripts\iKAT\Registry\RegionFormat\Get-UserRegionFormats.ps1 -Credential $creds
+
+# Target specific users
+.\Scripts\iKAT\Registry\RegionFormat\Get-UserRegionFormats.ps1 `
+    -TargetUsers @('jsmith', 'adoe') `
+    -Credential $creds
+
+# Read the Default User profile (affects new user profiles)
+.\Scripts\iKAT\Registry\RegionFormat\Get-UserRegionFormats.ps1 `
+    -TargetUsers @('Default') `
+    -Credential $creds
+
+# Load usernames from a file
+.\Scripts\iKAT\Registry\RegionFormat\Get-UserRegionFormats.ps1 `
+    -UserListFile 'C:\lists\users.txt' `
+    -Credential $creds
+```
+
+---
+
+### Set-UserRegionFormats.ps1
+
+Applies a culture code to the `LocaleName` registry value for targeted user profiles. The script validates the culture code before connecting to any server.
+
+<ParamField path="-RegionFormat" type="string" required>
+  A valid Windows culture code such as `en-US`, `nl-NL`, or `de-DE`. The script validates this with `[CultureInfo]::new()` before proceeding.
+</ParamField>
+
+<ParamField path="-Servers" type="string[]">
+  Array of server IP addresses or hostnames. Defaults to the configured target server.
+</ParamField>
+
+<ParamField path="-TargetUsers" type="string[]">
+  Limit changes to specific usernames. Use `@('Default')` to update the default user profile for new accounts.
+</ParamField>
+
+<ParamField path="-UserListFile" type="string">
+  Path to a `.txt` or `.csv` file with usernames to update.
+</ParamField>
+
+<ParamField path="-Credential" type="PSCredential">
+  Pre-captured `PSCredential` for remote authentication.
+</ParamField>
+
+```powershell
+# Set English (US) for all users — resolves Crystal Reports Dutch text issues
+$creds = Get-Credential -UserName 'DOMAIN\admin-username'
+.\Scripts\iKAT\Registry\RegionFormat\Set-UserRegionFormats.ps1 `
+    -RegionFormat 'en-US' `
+    -Credential $creds
+
+# Apply Dutch locale to specific users
+.\Scripts\iKAT\Registry\RegionFormat\Set-UserRegionFormats.ps1 `
+    -RegionFormat 'nl-NL' `
+    -TargetUsers @('jvandenberg', 'mdebruijn') `
+    -Credential $creds
+
+# Set the default profile so all new users start with the correct locale
+.\Scripts\iKAT\Registry\RegionFormat\Set-UserRegionFormats.ps1 `
+    -RegionFormat 'en-US' `
+    -TargetUsers @('Default') `
+    -Credential $creds
+
+# Bulk update across multiple servers from a user list
+.\Scripts\iKAT\Registry\RegionFormat\Set-UserRegionFormats.ps1 `
+    -RegionFormat 'de-DE' `
+    -Servers @('<server-ip-1>', '<server-ip-2>') `
+    -UserListFile 'C:\lists\users.csv' `
+    -Credential $creds
+```
+
+### Supported Culture Codes
+
+| Code | Region |
+|---|---|
+| `en-US` | English (United States) |
+| `nl-NL` | Dutch (Netherlands) |
+| `de-DE` | German (Germany) |
+| `fr-FR` | French (France) |
+| `es-ES` | Spanish (Spain) |
+
+<Tip>
+  Any valid Windows culture code is accepted — the list above covers the most common deployments. The script validates the code against the .NET `CultureInfo` class and exits with an error before touching any server if the code is invalid.
+</Tip>
+
+---
+
+## Output Files
+
+Both script families write timestamped CSV files automatically. Output paths are determined by each script at runtime and placed under your user profile's Documents folder.
+
+| Script Family | Default Output Directory |
+|---|---|
+| Date format scripts | `%USERPROFILE%\Documents\Scripts\PowerShellScripts\Output\DateFormats\` |
+| Region format scripts | `%USERPROFILE%\Documents\Scripts\PowerShellScripts\Output\RegionFormats\` |
+
+The set scripts record both the **old** and **new** values for each user, giving you a complete before/after audit trail. Use the CSV files to verify changes or roll back individual users if needed.

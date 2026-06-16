@@ -1,0 +1,111 @@
+---
+title: "WinGet App Setup: Full Script Parameters Reference"
+sidebarTitle: "Parameters"
+description: "Full reference for every parameter accepted by winget-app-install.ps1, including dry-run mode, update controls, and schedule frequency options."
+---
+
+`winget-app-install.ps1` accepts a set of optional switch and string parameters that let you preview changes before committing, skip environment checks in automated pipelines, and control how the script handles updates and scheduled tasks. All parameters are optional — running the script with no arguments performs a standard interactive install.
+
+## Installation parameters
+
+<ParamField query="WhatIf" type="Switch">
+  Performs all pre-flight checks and prints every action the script *would* take, but makes no changes to the system. No apps are installed or updated, no scheduled tasks are created, and no configuration files are written.
+
+  Use this flag to validate the script's behaviour in a new environment before committing to a full run.
+
+  ```powershell
+  .\winget-app-install.ps1 -WhatIf
+  ```
+</ParamField>
+
+<ParamField query="SkipSystemCheck" type="Switch">
+  Bypasses the pre-flight validation of OS version, available disk space, and network connectivity. Useful for headless or automated deployments where you have already confirmed requirements externally.
+
+  ```powershell
+  .\winget-app-install.ps1 -SkipSystemCheck
+  ```
+</ParamField>
+
+## Update parameters
+
+<ParamField query="CheckForUpdates" type="Switch">
+  Queries winget for available updates across all installed packages and prints the results. When used alone, this parameter reports but does not install anything. Pair it with `-AutoInstallUpdates` to also apply the updates.
+
+  ```powershell
+  # Report available updates only
+  .\winget-app-install.ps1 -CheckForUpdates
+
+  # Report and install updates in one step
+  .\winget-app-install.ps1 -CheckForUpdates -AutoInstallUpdates
+  ```
+</ParamField>
+
+<ParamField query="AutoInstallUpdates" type="Switch">
+  When combined with `-CheckForUpdates`, installs all available updates without prompting. When combined with `-EnableScheduledUpdates`, configures the scheduled task to auto-install updates each time it runs.
+
+  ```powershell
+  .\winget-app-install.ps1 -CheckForUpdates -AutoInstallUpdates
+  ```
+</ParamField>
+
+## Scheduled task parameters
+
+<ParamField query="EnableScheduledUpdates" type="Switch">
+  Creates a Windows scheduled task named `WingetAppSetup-ScheduledUpdates` that runs the update helper script on a recurring schedule. The task runs as the current user with no elevated privileges required at runtime.
+
+  By default the task runs every **Sunday at 2:00 AM**. Use `-UpdateFrequency Daily` to switch to a daily cadence.
+
+  ```powershell
+  # Enable weekly scheduled updates (default)
+  .\winget-app-install.ps1 -EnableScheduledUpdates
+
+  # Enable daily scheduled updates and auto-install
+  .\winget-app-install.ps1 -EnableScheduledUpdates -AutoInstallUpdates -UpdateFrequency Daily
+  ```
+</ParamField>
+
+<ParamField query="DisableScheduledUpdates" type="Switch">
+  Removes the `WingetAppSetup-ScheduledUpdates` scheduled task and updates the configuration file to mark scheduled updates as disabled. Use this to cleanly turn off automated updates without leaving orphaned tasks.
+
+  ```powershell
+  .\winget-app-install.ps1 -DisableScheduledUpdates
+  ```
+</ParamField>
+
+<ParamField query="UpdateFrequency" type="String" default="Weekly">
+  Sets the recurrence for the scheduled update task. Accepts `Weekly` (runs every Sunday at 2:00 AM) or `Daily` (runs every day at 2:00 AM). Has no effect unless `-EnableScheduledUpdates` is also specified.
+
+  **Accepted values:** `Weekly` | `Daily`
+
+  ```powershell
+  .\winget-app-install.ps1 -EnableScheduledUpdates -UpdateFrequency Daily
+  ```
+</ParamField>
+
+## Parameter combinations
+
+The examples below show the most common ways to combine parameters.
+
+```powershell
+# Dry run — preview what would be installed without making any changes
+.\winget-app-install.ps1 -WhatIf
+
+# Silent install for automated pipelines — skip environment checks
+.\winget-app-install.ps1 -SkipSystemCheck
+
+# Install apps and enable weekly auto-updates in one pass
+.\winget-app-install.ps1 -EnableScheduledUpdates -AutoInstallUpdates
+
+# Install apps and enable daily auto-updates
+.\winget-app-install.ps1 -EnableScheduledUpdates -AutoInstallUpdates -UpdateFrequency Daily
+
+# On-demand update check and install, no full app re-run
+.\winget-app-install.ps1 -CheckForUpdates -AutoInstallUpdates
+
+# Disable the scheduled task when it is no longer needed
+.\winget-app-install.ps1 -DisableScheduledUpdates
+```
+
+<Note>
+  `-EnableScheduledUpdates` and `-DisableScheduledUpdates` are mutually exclusive. The script exits with an error if you pass both at the same time.
+</Note>

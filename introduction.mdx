@@ -1,0 +1,52 @@
+---
+title: "J-MaFf's Git repo Toolkit"
+sidebarTitle: "Introduction"
+description: "Learn what J-MaFf's Git repos include, who they're for, and which tool to use for your IT automation needs."
+---
+
+The MAFF PowerShell Toolkit is an open-source collection of automation utilities built for Windows system administrators and IT engineers. Each tool targets a specific pain point in day-to-day Windows IT work — from zero-touch app deployment on fresh workstations, to bulk Active Directory remediation, to generating structured reports from project management data. You can adopt a single tool or use the whole suite; every component is designed to work independently.
+
+## What's Included
+
+The toolkit ships five separate tools. Pick the one that matches your immediate need, or read through all of them to understand the full scope of what's available.
+
+<CardGroup cols={2}>
+  <Card title="WinGet App Setup" icon="windows" href="/winget/overview">
+    Installs or updates 10 curated Windows apps — 7-Zip, Google Chrome, Git, PowerShell 7\+, Windows Terminal, Adobe Acrobat Reader (64-bit), Google Drive, TightVNC, Dell Command Update (Universal), and Bulk Crap Uninstaller — with a single PowerShell command. Supports scheduled daily or weekly update checks.
+  </Card>
+
+  <Card title="PowerShell Scripts" icon="terminal" href="/powershell/overview">
+    Enterprise IT scripts for Active Directory user and computer management, date and region format standardisation across remote servers, network scanning and diagnostics, automated printer deployment, and HTML report generation.
+  </Card>
+
+  <Card title="ClickUp Task Extractor" icon="list-check" href="/clickup/overview">
+    A cross-platform Python CLI that authenticates with the ClickUp API and exports tasks to Markdown, HTML, or CSV. Supports optional Google Gemini AI summaries, automated ETA calculation, and interactive task selection before export.
+  </Card>
+
+  <Card title="FlaUI PowerShell Tester" icon="flask-vial" href="/flaui/overview">
+    A GUI test harness built on FlaUI that executes PowerShell scripts against live Windows desktop environments. Integrates with Proxmox VM snapshots so you can test against clean, reproducible machine states.
+  </Card>
+
+  <Card title="Gitconfig" icon="code-branch" href="/gitconfig/overview">
+    A cross-platform Git configuration bundle that includes a terminal user interface for browsing, searching, and applying Git aliases — useful for teams that want a consistent Git experience across Windows, macOS, and Linux.
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+Most MAFF tools share a common set of requirements. Check the individual tool documentation for anything beyond this baseline.
+
+- **Windows 10 or Windows 11** — All PowerShell-based tools target modern Windows. The ClickUp extractor and gitconfig tools also run on macOS and Linux.
+- **PowerShell 5.1 or later** — PowerShell 7\+ is preferred for all scripts. Windows PowerShell 5.1 is supported for legacy compatibility where noted.
+- **Administrator rights** — The majority of scripts perform system-level operations (app installation, registry changes, Active Directory queries) and require an elevated session.
+- **WinGet** — Required for `winget-app-setup`. WinGet ships with Windows 10 1809\+ and Windows 11 via the App Installer package.
+- **Active Directory module (RSAT)** — Required for the AD scripts inside `PowerShellScripts`. The `ActiveDirectoryUtils` module attempts to install RSAT automatically when it detects they are missing; if elevation is unavailable it falls back to a limited read-only mode.
+- **Python 3.11\+** — Required for `clickup_task_extractor` only.
+
+<Note>
+  If you import `Modules\ActiveDirectoryUtils` without elevation, the module logs a warning and continues in limited mode rather than throwing a terminating error. Elevate your session to unlock full AD write operations.
+</Note>
+
+## Getting Started
+
+The fastest way to experience MAFF is to run the WinGet app installer on a Windows 10 or 11 machine. Head to the [Quickstart](/quickstart) page for a step-by-step walkthrough that gets your first tool running in under five minutes, then return here to explore the other components at your own pace.

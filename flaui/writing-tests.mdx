@@ -1,0 +1,282 @@
+---
+title: "Write GUI Automation Tests with FlaUI and Pester 5"
+sidebarTitle: "Writing Tests"
+description: "Learn the UiTestHelpers API, standard Pester 5 test structure, and how to capture failure screenshots when a GUI automation test fails."
+---
+
+Every FlaUI test in this harness follows the same three-part pattern: launch the script under test, interact with its controls, and assert that the result is correct — then close the window whether the test passed or failed. The `UiTestHelpers` module provides thin, focused wrappers over FlaUI so your test code stays readable and scoped to one window at a time.
+
+## Standard test structure
+
+Tests live in Pester 5 `.Tests.ps1` files. Import `UiTestHelpers.psm1` in a `BeforeAll` block at the top of the file, then use `Describe` and `It` blocks as normal. Each `It` block launches a fresh instance of the script under test and closes it in a `finally` block so a crash in one test never bleeds into the next.
+
+```powershell
+BeforeAll {
+    Import-Module "$PSScriptRoot/../lib/UiTestHelpers.psm1" -Force
+    $script:ScriptPath = "$PSScriptRoot/../samples/HelloForm.ps1"
+}
+
+Describe 'HelloForm' {
+
+    It 'greets the name that was typed' {
+        $ctx = Start-ScriptUnderTest -Path $script:ScriptPath
+        try {
+            Set-UiText     -Context $ctx -AutomationId 'nameBox'     -Text 'Joey'
+            Invoke-UiClick -Context $ctx -AutomationId 'okButton'
+
+            Get-UiText -Context $ctx -AutomationId 'resultLabel' | Should -Be 'Hello Joey'
+        }
+        catch {
+            $shot = Save-FailureScreenshot -Context $ctx
+            Write-Host "Screenshot: $shot"
+            throw
+        }
+        finally {
+            Stop-ScriptUnderTest -Context $ctx
+        }
+    }
+
+    It 'handles an empty name' {
+        $ctx = $null
+        try {
+            $ctx = Start-ScriptUnderTest -Path $script:ScriptPath
+            Invoke-UiClick -Context $ctx -AutomationId 'okButton'
+            Get-UiText -Context $ctx -AutomationId 'resultLabel' | Should -Be 'Hello '
+        }
+        finally {
+            if ($ctx) { Stop-ScriptUnderTest -Context $ctx }
+        }
+    }
+}
+```
+
+## UiTestHelpers API reference
+
+The module exports the following functions. Every function that interacts with the UI requires a `-Context` object returned by `Start-ScriptUnderTest`, keeping all actions scoped to that script's window.
+
+### Initialize-FlaUI
+
+Loads the FlaUI DLLs from `lib/flaui/` into the current session and creates a single shared `UIA3Automation` instance. `Start-ScriptUnderTest` calls this automatically, so you do not need to call it directly in tests. It is safe to call multiple times — subsequent calls are no-ops if the types are already loaded.
+
+```powershell
+Initialize-FlaUI
+```
+
+### Start-ScriptUnderTest
+
+Launches a PowerShell script in a hidden `pwsh` process and waits for its main window to appear. Returns a context object you pass to all other helpers.
+
+<ParamField path="-Path" type="string" required>
+  Full or relative path to the `.ps1` file to launch.
+</ParamField>
+<ParamField path="-TimeoutSeconds" type="int">
+  How long to wait for the window to appear. Defaults to `15`.
+</ParamField>
+
+```powershell
+$ctx = Start-ScriptUnderTest -Path 'C:\scripts\MyForm.ps1'
+```
+
+### Stop-ScriptUnderTest
+
+Closes the application window. Call this in a `finally` block so the process is cleaned up even if the test fails.
+
+<ParamField path="-Context" type="object" required>
+  The context object returned by `Start-ScriptUnderTest`.
+</ParamField>
+
+```powershell
+Stop-ScriptUnderTest -Context $ctx
+```
+
+### Find-UiElement
+
+Searches the script's window for a descendant control by `AutomationId` or `Name`, retrying until the control appears or the timeout expires. Throws if the control is not found.
+
+<ParamField path="-Context" type="object" required>
+  Context from `Start-ScriptUnderTest`.
+</ParamField>
+<ParamField path="-AutomationId" type="string">
+  The control's `AutomationId` property (set via the `.Name` property on WinForms controls).
+</ParamField>
+<ParamField path="-Name" type="string">
+  The control's accessible name. Use `AutomationId` when possible — see the tip below.
+</ParamField>
+<ParamField path="-TimeoutSeconds" type="int">
+  How long to retry. Defaults to `10`.
+</ParamField>
+
+```powershell
+$el = Find-UiElement -Context $ctx -AutomationId 'okButton'
+```
+
+### Invoke-UiClick
+
+Finds a button by `AutomationId` or `Name` and invokes it through the UI Automation button pattern.
+
+<ParamField path="-Context" type="object" required>
+  Context from `Start-ScriptUnderTest`.
+</ParamField>
+<ParamField path="-AutomationId" type="string">
+  `AutomationId` of the button to click.
+</ParamField>
+<ParamField path="-Name" type="string">
+  Accessible name of the button to click.
+</ParamField>
+
+```powershell
+Invoke-UiClick -Context $ctx -AutomationId 'okButton'
+```
+
+### Set-UiText
+
+Finds a text box and sets its `.Text` property directly, replacing any existing value.
+
+<ParamField path="-Context" type="object" required>
+  Context from `Start-ScriptUnderTest`.
+</ParamField>
+<ParamField path="-AutomationId" type="string">
+  `AutomationId` of the text box.
+</ParamField>
+<ParamField path="-Name" type="string">
+  Accessible name of the text box.
+</ParamField>
+<ParamField path="-Text" type="string" required>
+  The value to set.
+</ParamField>
+
+```powershell
+Set-UiText -Context $ctx -AutomationId 'nameBox' -Text 'Joey'
+```
+
+### Send-UiKeys
+
+Focuses a control and sends keystrokes via the FlaUI keyboard API. Use this for controls that don't support the Text pattern, or to send keyboard shortcuts.
+
+<ParamField path="-Context" type="object" required>
+  Context from `Start-ScriptUnderTest`.
+</ParamField>
+<ParamField path="-AutomationId" type="string">
+  `AutomationId` of the control to focus.
+</ParamField>
+<ParamField path="-Name" type="string">
+  Accessible name of the control to focus.
+</ParamField>
+<ParamField path="-Keys" type="string" required>
+  Key sequence to type, e.g. `'{ENTER}'` or `'Hello{TAB}'`.
+</ParamField>
+
+```powershell
+Send-UiKeys -Context $ctx -AutomationId 'searchBox' -Keys 'Hello{ENTER}'
+```
+
+### Get-UiText
+
+Returns the current text value of a control. For editable controls it reads the Value pattern; for labels and other display controls it reads the `Name` property.
+
+<ParamField path="-Context" type="object" required>
+  Context from `Start-ScriptUnderTest`.
+</ParamField>
+<ParamField path="-AutomationId" type="string">
+  `AutomationId` of the control to read.
+</ParamField>
+<ParamField path="-Name" type="string">
+  Accessible name of the control to read.
+</ParamField>
+
+```powershell
+$text = Get-UiText -Context $ctx -AutomationId 'resultLabel'
+$text | Should -Be 'Hello Joey'
+```
+
+### Save-FailureScreenshot
+
+Captures the current state of the script's window to a timestamped PNG file. Call this in your `catch` block to preserve evidence when an assertion fails.
+
+<ParamField path="-Context" type="object" required>
+  Context from `Start-ScriptUnderTest`.
+</ParamField>
+<ParamField path="-OutDir" type="string">
+  Directory to save the PNG. Defaults to `artifacts/` at the repository root (one level above the `lib/` directory where the module lives).
+</ParamField>
+
+```powershell
+catch {
+    $shot = Save-FailureScreenshot -Context $ctx
+    Write-Host "Screenshot saved: $shot"
+    throw
+}
+```
+
+## Full example test
+
+The test below is based on `samples/HelloForm.ps1`, a minimal WinForms script with a `nameBox` text box, an `okButton`, and a `resultLabel`. It mirrors the structure of `tests/Example.Tests.ps1` and is a ready-to-copy starting point for your own scripts.
+
+```powershell
+BeforeAll {
+    Import-Module "$PSScriptRoot/../lib/UiTestHelpers.psm1" -Force
+    $script:ScriptPath = "$PSScriptRoot/../samples/HelloForm.ps1"
+}
+
+Describe 'HelloForm' {
+
+    It 'greets the name that was typed' {
+        $ctx = Start-ScriptUnderTest -Path $script:ScriptPath
+        try {
+            Set-UiText     -Context $ctx -AutomationId 'nameBox'     -Text 'Joey'
+            Invoke-UiClick -Context $ctx -AutomationId 'okButton'
+
+            Get-UiText -Context $ctx -AutomationId 'resultLabel' | Should -Be 'Hello Joey'
+        }
+        catch {
+            $shot = Save-FailureScreenshot -Context $ctx
+            Write-Host "Screenshot: $shot"
+            throw
+        }
+        finally {
+            Stop-ScriptUnderTest -Context $ctx
+        }
+    }
+
+    It 'handles an empty name' {
+        $ctx = $null
+        try {
+            $ctx = Start-ScriptUnderTest -Path $script:ScriptPath
+            Invoke-UiClick -Context $ctx -AutomationId 'okButton'
+            Get-UiText -Context $ctx -AutomationId 'resultLabel' | Should -Be 'Hello '
+        }
+        finally {
+            if ($ctx) { Stop-ScriptUnderTest -Context $ctx }
+        }
+    }
+}
+```
+
+## Making your script testable
+
+For `Find-UiElement`, `Invoke-UiClick`, `Set-UiText`, and `Get-UiText` to locate controls reliably, the controls in your script need selectors. In WinForms, set the `.Name` property on each control you want to interact with — FlaUI exposes this as the `AutomationId`:
+
+```powershell
+$nameBox      = New-Object System.Windows.Forms.TextBox
+$nameBox.Name = 'nameBox'      # becomes the AutomationId in tests
+
+$okButton      = New-Object System.Windows.Forms.Button
+$okButton.Name = 'okButton'
+
+$resultLabel      = New-Object System.Windows.Forms.Label
+$resultLabel.Name = 'resultLabel'
+```
+
+## Tips
+
+<Tip>
+  Prefer `-AutomationId` over `-Name` whenever possible. `AutomationId` maps to the `.Name` property you set in code and is stable across localization and theme changes. The accessible `-Name` of a button, for example, changes if you rename the button label.
+</Tip>
+
+<Tip>
+  Always call `Stop-ScriptUnderTest` in a `finally` block. If an assertion throws, the `pwsh` process launched by `Start-ScriptUnderTest` stays alive until `Stop-ScriptUnderTest` closes it. Orphaned processes accumulate and can cause flaky window-detection failures in subsequent tests.
+</Tip>
+
+<Tip>
+  Call `Save-FailureScreenshot` in your `catch` block, then re-`throw`. This lets Pester record the failure normally while also leaving a timestamped PNG in `artifacts/` showing exactly what the window displayed when the assertion failed.
+</Tip>

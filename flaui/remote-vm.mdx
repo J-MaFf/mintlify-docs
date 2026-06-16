@@ -1,0 +1,132 @@
+---
+title: "Run FlaUI Tests Against a Remote Proxmox Windows VM"
+sidebarTitle: "Remote VM"
+description: "Configure targets.json for a Proxmox-hosted Windows VM, set WinRM credentials, revert to a clean snapshot, and run the full test suite remotely."
+---
+
+Running tests against a remote Windows VM gives you a clean, isolated environment for every run — no accumulated state, no leftover files from previous tests, and no risk of a failing test affecting the machine you develop on. The harness connects to the VM over WinRM, copies itself across, and (by default) reverts the VM to a baseline Proxmox snapshot before it does anything else.
+
+## How it works
+
+When the active target is `vm`, `Run-Suite.ps1` executes this sequence automatically:
+
+1. **Snapshot revert** — calls the Proxmox REST API to roll the VM back to the named baseline snapshot, then boots it and waits for WinRM to answer.
+2. **Connect** — opens a `PSSession` over WinRM to the VM using the credentials you provide via environment variables.
+3. **Sync** — copies the harness (including `lib/`, `tests/`, `samples/`, and the FlaUI DLLs) to `C:\flaui-tester` on the VM over the open session, so the snapshot doesn't need to have them pre-baked.
+4. **Run** — invokes Pester inside the remote session, exactly as it would run locally.
+5. **Pull results** — copies `artifacts/` (Pester XML + any failure screenshots) back to your local machine.
+6. **Disconnect** — closes the WinRM session. If you passed `-ResetAfter`, the VM is reverted again to leave it in a clean state.
+
+## Prerequisites
+
+Before switching the active target to `vm`, confirm the following are in place:
+
+- **A Proxmox host** with a Windows VM (WinForms/WPF requires Windows 10 or 11).
+- **A clean baseline snapshot** on that VM. Take the snapshot after installing PowerShell 7, Pester 5, and any software your scripts under test depend on — but *before* any test-run state accumulates. The default snapshot name is `clean`.
+- **WinRM enabled** on the VM guest. Run this on the guest once, then include it in your snapshot:
+  ```powershell
+  Enable-PSRemoting -Force
+  ```
+- **The VM's hostname added to TrustedHosts** on your local machine (required for HTTP WinRM to a non-domain host):
+  ```powershell
+  Set-Item WSMan:\localhost\Client\TrustedHosts -Value '<your-vm-hostname>' -Force
+  ```
+- **A Proxmox API token** with `VM.Snapshot.Rollback` and `VM.PowerMgmt` permissions on the target VM.
+
+## Configure targets.json
+
+Open `config/targets.json` and set `"active"` to `"vm"`. Then fill in the `connection` and `proxmox` blocks to match your environment:
+
+```json
+{
+  "active": "vm",
+
+  "targets": {
+    "local": {
+      "kind": "local"
+    },
+
+    "vm": {
+      "kind": "remote",
+      "connection": {
+        "computerName": "<your-vm-hostname>",
+        "transport": "WinRM",
+        "username": "Administrator",
+        "useSSL": false,
+        "credentialEnvVar": "WIN_TEST_CRED"
+      },
+      "proxmox": {
+        "apiHost": "https://<proxmox-host>:8006",
+        "node": "<your-node>",
+        "vmid": "<your-vmid>",
+        "baselineSnapshot": "clean",
+        "tokenEnvVar": "PROXMOX_TOKEN"
+      }
+    }
+  }
+}
+```
+
+The key fields to update are:
+
+| Field | Description |
+|---|---|
+| `connection.computerName` | Hostname or IP of the Windows VM as reachable from your machine. |
+| `connection.username` | Windows account to use for the WinRM session. |
+| `connection.useSSL` | Set to `true` if WinRM is configured over HTTPS (port 5986). |
+| `proxmox.apiHost` | Base URL of your Proxmox API, including port (`8006` by default). |
+| `proxmox.node` | Proxmox node name where the VM lives. |
+| `proxmox.vmid` | Numeric VMID of the Windows VM. |
+| `proxmox.baselineSnapshot` | Name of the snapshot to revert to before each run. |
+
+The `credentialEnvVar` and `tokenEnvVar` fields are the names of the environment variables that hold the secrets — do not put credentials directly in the JSON file.
+
+## Set environment variables
+
+The harness reads credentials from environment variables at runtime. Set them in your shell before running the suite:
+
+```powershell
+$env:WIN_TEST_CRED  = 'your-vm-password'
+$env:PROXMOX_TOKEN  = 'root@pam!tester=xxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+```
+
+<Warning>
+  Never commit credentials to `targets.json` or any other file in the repo. The `credentialEnvVar` and `tokenEnvVar` fields are intentionally indirected through environment variables so secrets stay out of source control.
+</Warning>
+
+The Proxmox token format is `USER@REALM!TOKENID=SECRET`. Generate one in the Proxmox web UI under **Datacenter → API Tokens**, then grant it `VM.Snapshot.Rollback` and `VM.PowerMgmt` on the target VM's permission path (`/vms/<vmid>`).
+
+## Run the suite
+
+With `targets.json` pointing at `vm` and the environment variables set, run the suite with a single command:
+
+```powershell
+./tests/Run-Suite.ps1
+```
+
+This executes the full reset → connect → sync → run → report flow. The Pester XML and any failure screenshots land in `artifacts/` on your local machine when the run completes.
+
+### Run-Suite.ps1 flags
+
+| Flag | Description |
+|---|---|
+| `-TestPath <path>` | Path to a specific test file or folder, relative to the repo root on the target. Defaults to `tests`. |
+| `-NoReset` | Skip the pre-run snapshot revert. The VM must already be running. Use this for faster iteration when you know the environment is still clean. |
+| `-ResetAfter` | Revert the VM to the baseline snapshot after the run completes, leaving it in a known-good state for next time. |
+
+```powershell
+# Run a single test file
+./tests/Run-Suite.ps1 -TestPath tests/MyForm.Tests.ps1
+
+# Skip the snapshot revert for a faster re-run
+./tests/Run-Suite.ps1 -NoReset
+
+# Revert the VM both before and after the run
+./tests/Run-Suite.ps1 -ResetAfter
+```
+
+<Note>
+  Use `-NoReset` during active development when you are iterating quickly and confident the VM state hasn't drifted. Drop `-NoReset` for any run you intend to treat as a definitive result — the snapshot revert is what guarantees the environment is truly clean.
+</Note>
+
+The script exits with code `0` if all tests pass and `1` if any fail, making it suitable as a CI step or a pre-merge gate.

@@ -1,0 +1,94 @@
+---
+title: "Get Started with the MAFF PowerShell Toolkit"
+sidebarTitle: "Quickstart"
+description: "Set up and run your first MAFF tool in under 5 minutes — start with the WinGet app installer or explore PowerShell scripts for IT management."
+---
+
+The quickest way into the MAFF toolkit is the `winget-app-install.ps1` script. It requires no cloning, no manual downloads, and no configuration — one command fetches the script from GitHub and runs it directly. By the end of this guide you'll have ten essential Windows apps installed (or updated) and know where to go next.
+
+<Note>
+  Run PowerShell **as Administrator** before executing any MAFF commands. The installer needs elevated privileges to install applications system-wide, create scheduled tasks, and trust WinGet sources. Right-click the PowerShell icon and select **Run as administrator**, or launch Windows Terminal with elevated permissions.
+</Note>
+
+<Steps>
+  <Step title="Confirm prerequisites">
+    Before you run the installer, verify the following on your Windows machine:
+
+    - **Windows 10 (1809 or later) or Windows 11** — WinGet ships as part of the App Installer package on these versions.
+    - **PowerShell 5.1 or later** — Open a terminal and run `$PSVersionTable.PSVersion` to check. PowerShell 7+ is recommended.
+    - **Administrator rights** — The script will attempt to self-elevate if it detects it isn't running as admin, but starting elevated avoids any UAC prompts.
+    - **Internet access** — The script downloads packages directly from WinGet sources.
+
+    If WinGet isn't available, install or update the **App Installer** package from the Microsoft Store, then restart your terminal.
+  </Step>
+
+  <Step title="Run the one-liner installer">
+    Paste the following command into an elevated PowerShell window and press **Enter**:
+
+    ```powershell
+    Set-ExecutionPolicy Unrestricted -Scope Process; irm "https://raw.githubusercontent.com/J-MaFf/winget-app-setup/refs/heads/main/winget-app-install.ps1" | iex
+    ```
+
+    `Set-ExecutionPolicy Unrestricted -Scope Process` relaxes the execution policy for the current process only — it does not change your system-wide policy. `irm` downloads the script, and `iex` executes it immediately.
+
+    <Tip>
+      Run this same command any time you want to update the installed apps. The script detects what's already installed and only upgrades packages that have newer versions available.
+    </Tip>
+  </Step>
+
+  <Step title="Watch the installer run">
+    The script performs several actions automatically:
+
+    1. **Pre-flight checks** — Verifies OS version, available disk space, and network connectivity.
+    2. **Module setup** — Installs or imports `Microsoft.WinGet.Client` from the PowerShell Gallery if it isn't already present.
+    3. **Source trust** — Accepts the required WinGet source agreements so the installation proceeds non-interactively.
+    4. **App installation** — Installs or updates the following ten curated applications:
+
+    | App | Publisher |
+    |---|---|
+    | 7-Zip | Igor Pavlov |
+    | Google Chrome | Google |
+    | Git | Git SCM |
+    | PowerShell 7+ | Microsoft |
+    | Windows Terminal | Microsoft |
+    | Adobe Acrobat Reader (64-bit) | Adobe |
+    | Google Drive | Google |
+    | TightVNC | TightVNC Software |
+    | Dell Command Update (Universal) | Dell |
+    | Bulk Crap Uninstaller | Marcin Szeniak |
+
+    Each app displays its install or update status in the console as the script progresses. Already up-to-date apps are skipped automatically.
+  </Step>
+
+  <Step title="Explore next steps">
+    Once the installer finishes, you have several directions to explore:
+
+    **Enable automatic updates** — Keep your apps current without manual intervention by scheduling a weekly or daily update check:
+
+    ```powershell
+    # Enable weekly updates (runs every Sunday at 2:00 AM)
+    Set-ExecutionPolicy Unrestricted -Scope Process; & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/J-MaFf/winget-app-setup/refs/heads/main/winget-app-install.ps1"))) -EnableScheduledUpdates
+
+    # Enable daily updates instead
+    Set-ExecutionPolicy Unrestricted -Scope Process; & ([scriptblock]::Create((irm "https://raw.githubusercontent.com/J-MaFf/winget-app-setup/refs/heads/main/winget-app-install.ps1"))) -EnableScheduledUpdates -UpdateFrequency Daily
+    ```
+
+    **Try the enterprise PowerShell scripts** — Clone `PowerShellScripts` and explore the Active Directory, network, and region format tools in your environment.
+
+    **Export ClickUp tasks** — If your team uses ClickUp, set up `clickup_task_extractor` to generate Markdown or HTML reports with optional AI summaries.
+  </Step>
+</Steps>
+
+## What's Next
+
+<CardGroup cols={2}>
+  <Card title="WinGet Parameters" icon="sliders" href="/winget/parameters">
+    Explore every parameter the installer supports — WhatIf mode, update flags, scheduled tasks, and more.
+  </Card>
+  <Card title="Scheduled Updates" icon="calendar-check" href="/winget/scheduled-updates">
+    Set up automatic weekly or daily app updates with a single parameter flag.
+  </Card>
+  <Card title="PowerShell Scripts" icon="terminal" href="/powershell/overview">
+    Dive into the enterprise script collection for Active Directory, networking, printers, and region format management.
+  </Card>
+</CardGroup>

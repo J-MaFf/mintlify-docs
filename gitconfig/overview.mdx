@@ -1,0 +1,52 @@
+---
+title: "Cross-Platform Git Configuration with Aliases and Auto-Sync"
+sidebarTitle: "Overview"
+description: "Template-driven Git configuration with 40+ curated aliases, an interactive TUI alias browser, and automatic login-time sync on macOS, Linux, and Windows."
+---
+
+The MAFF gitconfig system gives you a consistent, opinionated Git environment on every machine you work on. It generates your `~/.gitconfig` from a version-controlled template, ships more than 40 carefully categorised aliases for everyday workflow, and keeps itself up to date automatically at each login — so you never have to think about which machine has the latest tweaks.
+
+## What the System Does
+
+At its core, the installer takes a single `.gitconfig.template` file that lives in this repository and renders it into a machine-specific `~/.gitconfig` with the correct local paths substituted. From that point on:
+
+- **Aliases** give you short, memorable commands for inspecting history, committing, branching, syncing with remotes, and managing the configuration itself.
+- **The interactive alias browser** (`git alias`) opens a searchable, category-tabbed TUI powered by the `textual` Python package. Press **Ctrl-G** at your shell prompt to insert a chosen alias directly onto the command line.
+- **Auto-sync** runs at every login (launchd on macOS, Task Scheduler on Windows, cron on Linux). It pulls the latest commits from the gitconfig repository and, when the template has changed, regenerates `~/.gitconfig` automatically. You can also trigger it on demand with `git selfupdate`.
+- **Machine-specific overrides** live in `~/.gitconfig.local`, which the installer never touches. Put per-machine settings — signing keys, local `safe.directory` entries, work-specific identity — there and they survive every update.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="40+ Curated Aliases" icon="bolt">
+    Five categories — Inspect, Commit, Branch & Sync, GitHub, and Maintenance — covering everything from a quick `git s` status to `git start <issue#>` branch creation from a GitHub issue title.
+  </Card>
+  <Card title="Interactive Alias Browser" icon="terminal">
+    `git alias` opens a full TUI with search and category tabs. `git alias --plain` prints a static grouped table for piping and scripting.
+  </Card>
+  <Card title="Auto-Sync at Login" icon="arrows-rotate">
+    The login job pulls the repo and regenerates `~/.gitconfig` when the template changes, so all machines stay in sync without manual intervention.
+  </Card>
+  <Card title="Machine-Specific Config" icon="sliders">
+    `~/.gitconfig.local` is included automatically but never overwritten. Edit it with `git localconfig` to add per-machine settings.
+  </Card>
+</CardGroup>
+
+## Supported Platforms
+
+| Platform | Shell / Environment        | Auto-Sync Job     | Minimum Requirement           |
+|----------|----------------------------|-------------------|-------------------------------|
+| macOS    | bash / zsh                 | launchd agent     | macOS 12+, Homebrew, Python 3 |
+| Linux    | bash                       | cron job          | bash 4.0+, cron, Python 3     |
+| Windows  | PowerShell 5.1+ or 7+      | Task Scheduler    | PowerShell 5.1+, Python 3     |
+
+## Where to Go Next
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/gitconfig/installation">
+    Run the one-command installer for your platform, understand what it sets up, and learn how to customise the setup with available flags.
+  </Card>
+  <Card title="Alias Reference" icon="list" href="/gitconfig/aliases">
+    Browse all 40+ aliases by category, learn how to use the interactive browser, and see the Ctrl-G shell keybinding in action.
+  </Card>
+</CardGroup>

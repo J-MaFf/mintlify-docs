@@ -1,0 +1,149 @@
+---
+title: "Install the MAFF Git Configuration on Any Platform"
+sidebarTitle: "Installation"
+description: "Step-by-step installation for macOS, Linux, and Windows: prerequisites, what each installer does, and how to customize per-machine settings."
+---
+
+The MAFF gitconfig installer is a single command per platform. It clones the repository once, runs the setup script, and from that point forward the system maintains itself automatically at each login. The steps below walk you through the prerequisites and the exact command to run on your platform.
+
+## Prerequisites
+
+Before you run the installer, make sure the following are present on your machine:
+
+- **Git** — used to clone the repository and by the aliases themselves.
+- **Python 3** — required by the alias helper script. Install from [python.org](https://www.python.org/downloads/) or via your system package manager.
+- **pip** — comes with Python 3.4+. Used to install the `rich` package (required) and `textual` (optional).
+- **`rich` Python package** — required for alias tables. The installer installs this automatically; see below if it fails.
+- **`textual` Python package** — optional. Powers the interactive `git alias` TUI browser. Without it, `git alias` falls back to a static grouped table.
+
+<Note>
+On Windows, the installer requires **Administrator privileges** to create symlinks and register the scheduled task. The script detects non-elevated sessions and relaunches itself elevated automatically — you will see a UAC prompt.
+</Note>
+
+## Clone the Repository
+
+Clone the gitconfig repository to the same location on every machine so the auto-update job always finds it. The recommended location is `~/Documents/Scripts/gitconfig`.
+
+```bash
+git clone https://github.com/J-MaFf/gitconfig.git ~/Documents/Scripts/gitconfig
+cd ~/Documents/Scripts/gitconfig
+```
+
+## Run the Installer
+
+<Tabs>
+  <Tab title="macOS">
+    ```bash
+    bash scripts/mac\ version/install.sh --force
+    ```
+
+    The macOS installer:
+    - Generates `~/.gitconfig` from the template with the correct repository path substituted.
+    - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py`.
+    - Generates `~/.gitconfig.local` with machine-specific defaults (SSH signing key, `safe.directory`, etc.).
+    - Installs `rich` and `textual` via pip.
+    - Registers a launchd login agent that runs `git selfupdate` at each login.
+    - Adds the `Ctrl-G` alias browser keybinding to your `~/.bashrc` or `~/.zshrc`.
+
+    **Optional — SSH commit signing with 1Password:**
+    ```bash
+    brew install 1password-cli
+    bash scripts/mac\ version/install.sh --force
+    ```
+  </Tab>
+  <Tab title="Linux">
+    ```bash
+    bash scripts/linux\ version/install.sh --force
+    ```
+
+    The Linux installer performs the same steps as macOS, but registers a **cron job** instead of a launchd agent for the login-time auto-sync.
+  </Tab>
+  <Tab title="Windows">
+    Open PowerShell **as Administrator** (the script will auto-elevate if you forget), then run:
+
+    ```powershell
+    & ".\scripts\windows version\install.ps1" -Force
+    ```
+
+    The Windows installer:
+    - Generates `~/.gitconfig` from the template.
+    - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py` (requires Admin).
+    - Generates `~/.gitconfig.local`.
+    - Installs `rich` and `textual` via pip.
+    - Registers a **Task Scheduler** task (`Update-GitConfig`) that fires at login.
+    - Adds the `Ctrl-G` alias browser keybinding to your PowerShell profile (`$PROFILE.CurrentUserAllHosts`).
+
+    **Skip the scheduled task:**
+    ```powershell
+    & ".\scripts\windows version\install.ps1" -Force -NoTask
+    ```
+  </Tab>
+</Tabs>
+
+## Windows Setup Flags
+
+The Windows installer exposes several flags for granular control:
+
+| Flag | Effect |
+|------|--------|
+| `-Force` | Overwrite existing files without prompting. Use this for fresh installs and re-installs. |
+| `-NoTask` | Skip Task Scheduler registration. Use this on machines where you don't want auto-sync. |
+| `-Help` | Print the full usage summary and exit. |
+
+You can also run the individual sub-scripts directly:
+
+```powershell
+# Regenerate ~/.gitconfig from the template only
+& ".\scripts\windows version\Initialize-GitConfig.ps1" -Force
+
+# Recreate symlinks only
+& ".\scripts\windows version\Initialize-Symlinks.ps1" -Force
+
+# Regenerate ~/.gitconfig.local only
+& ".\scripts\windows version\Initialize-LocalConfig.ps1" -Force
+```
+
+## What the Installer Creates
+
+After a successful run you will have:
+
+| File | Description |
+|------|-------------|
+| `~/.gitconfig` | Generated from the template. **Do not edit directly** — changes will be overwritten on the next `git selfupdate`. |
+| `~/.gitconfig.local` | Machine-specific overrides. Included by `~/.gitconfig` via `[include]`. **Safe to edit freely.** |
+| `~/.gitignore_global` | Global ignore patterns for IDEs, OS files, and build artifacts. |
+| `~/gitconfig_helper.py` | Python helper invoked by aliases like `git alias`, `git cleanup`, and `git main`. |
+
+## Machine-Specific Configuration
+
+Open `~/.gitconfig.local` at any time with:
+
+```bash
+git localconfig
+```
+
+Put any setting that should only apply to this machine in that file — a different signing key, a work email address, or `safe.directory` entries for mounted paths. The file is never overwritten by the install scripts or the auto-update job.
+
+## Auto-Update Job
+
+<Note>
+The auto-update job runs at every login. It performs `git pull` on the gitconfig repository, and if `.gitconfig.template` changed in that pull, regenerates `~/.gitconfig` automatically. It also prunes merged branches in the repository to keep things tidy. Run the same operation on demand at any time with `git selfupdate`.
+</Note>
+
+Your existing `~/.gitconfig` is backed up to `~/.gitconfig.bak` before each regeneration, and `~/.gitconfig.local` is never modified.
+
+## Verifying the Installation
+
+Run a quick sanity check after install:
+
+```bash
+git alias --plain   # Should print a grouped table of all aliases
+git s               # Should show your working-tree status (short form)
+git selfupdate      # Should pull the repo and report "Already up to date" or apply changes
+```
+
+If `git alias` prints an error about Python not being found, install Python 3 and re-run the installer. If `rich` is missing, install it manually:
+
+```bash
+python -m pip install rich textual
+```

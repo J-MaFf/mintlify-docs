@@ -1,0 +1,234 @@
+---
+title: "Frequently Asked Questions About the MAFF Toolkit"
+sidebarTitle: "FAQ"
+description: "Common questions about PowerShell requirements, script compatibility, 1Password integration, ClickUp, testing without Proxmox, and log file locations."
+---
+
+This page collects answers to questions that come up frequently across all MAFF toolkit components — gitconfig, winget-app-setup, ActiveDirectoryUtils, and supporting scripts. If you are looking for tool-specific troubleshooting, see the dedicated pages in this section.
+
+<Accordion title="What version of PowerShell is required?">
+
+The minimum supported version is **PowerShell 5.1** (Windows PowerShell), which ships with Windows 10 and Windows Server 2016+.
+
+**PowerShell 7+ (pwsh) is strongly preferred** for all new scripts and is installed automatically by `winget-app-install.ps1` as part of the curated app list. PowerShell 7 offers:
+- Better error messages and stack traces.
+- `Invoke-RestMethod` and `ConvertFrom-Json` improvements used by several MAFF scripts.
+- Parallel processing with `ForEach-Object -Parallel`.
+- Cross-platform execution on macOS and Linux.
+
+Scripts that require PowerShell 7 will state so explicitly in their synopsis or parameter block. Scripts that work on both versions use `$PSVersionTable.PSVersion.Major` guards around version-specific features.
+
+Check your current version:
+
+```powershell
+$PSVersionTable.PSVersion
+```
+
+Install or update PowerShell 7:
+
+```powershell
+winget install Microsoft.PowerShell
+```
+
+</Accordion>
+
+<Accordion title="Do scripts work on Windows Server?">
+
+Yes. All MAFF PowerShell scripts are tested and supported on Windows Server with the same requirements as Windows 10/11:
+- **Windows Server 2019+** is fully supported.
+- **Windows Server 2016** works with PowerShell 5.1 minimum; PowerShell 7 is recommended.
+- **Windows Server 2012 R2** is not supported — PowerShell 5.1 can be installed but some WinGet and module installation paths rely on modern Windows capabilities not available on older Server releases.
+
+For `winget-app-install.ps1` on Server, note that `winget` itself requires the **App Installer** package, which is available on Windows Server 2019+ but must be installed manually (it is not included out of the box as on consumer Windows editions). The script's `Test-AndInstallWinget` function handles this automatically.
+
+For `ActiveDirectoryUtils`, Windows Server domain controllers must have the **ADWS service running** (port 9389). This is enabled by default on Server 2012+ when Active Directory Domain Services is installed.
+
+</Accordion>
+
+<Accordion title="Can I customise the list of apps installed by winget-app-setup?">
+
+The current curated app list is defined directly in `winget-app-install.ps1` as a PowerShell array of winget package IDs:
+
+```powershell
+$apps = @(
+    @{name = '7zip.7zip' },
+    @{name = 'GlavSoft.TightVNC' },
+    @{name = 'Adobe.Acrobat.Reader.64-bit' },
+    @{name = 'Google.Chrome' },
+    @{name = 'Google.GoogleDrive' },
+    @{name = 'Git.Git' },
+    @{name = 'Klocman.BulkCrapUninstaller' },
+    @{name = 'Dell.CommandUpdate.Universal' },
+    @{name = 'Microsoft.PowerShell' },
+    @{name = 'Microsoft.WindowsTerminal' }
+)
+```
+
+To add or remove apps, edit this array directly in your local copy of the script. Each entry must be a hashtable with a `name` key matching an exact winget package ID. Find valid IDs with:
+
+```powershell
+winget search <AppName> --source winget
+```
+
+The script validates all definitions before starting — duplicates are silently removed and malformed entries (missing `name`, wrong type) are reported and skipped, so the install continues for all valid entries even if one is misconfigured.
+
+<Tip>
+Use `.\winget-app-install.ps1 -WhatIf` to preview exactly which apps would be installed, updated, or skipped — without making any system changes.
+</Tip>
+
+</Accordion>
+
+<Accordion title="How do I add my own Git aliases?">
+
+Never edit `~/.gitconfig` directly — the auto-update job regenerates it from the template and will overwrite any manual changes on the next login.
+
+Put your custom aliases in `~/.gitconfig.local`:
+
+```bash
+git localconfig
+```
+
+This opens `~/.gitconfig.local` in your configured editor. Add aliases under an `[alias]` section:
+
+```ini
+[alias]
+    # My custom shortcut
+    pushall = !git push && git push --tags
+    # Open the repository in VS Code
+    code = !code .
+```
+
+`~/.gitconfig.local` is included by `~/.gitconfig` via `[include]` and is **never modified by the install scripts or the auto-update job**. Your custom aliases survive every `git selfupdate`.
+
+You can also use `git localconfig <key> <value>` to set arbitrary config values:
+
+```bash
+git localconfig user.email work@company.com
+git localconfig core.autocrlf true
+```
+
+</Accordion>
+
+<Accordion title="Does the ClickUp task extractor work with any ClickUp workspace?">
+
+Yes. The ClickUp task extractor authenticates with the ClickUp API using your personal API key and works with any workspace you have access to.
+
+Use the `--workspace` flag to target a specific workspace by name or ID, and `--space` to narrow down to a particular Space within that workspace:
+
+```bash
+python main.py --workspace "My Company" --space "Engineering"
+```
+
+If you have access to multiple workspaces, omit `--workspace` to use the default workspace. The extractor requires your ClickUp API key, which you can generate at **ClickUp Settings → Apps → API Token**. Set it as the `CLICKUP_API_KEY` environment variable to avoid being prompted on each run:
+
+```bash
+export CLICKUP_API_KEY="pk_..."
+```
+
+</Accordion>
+
+<Accordion title="What is 1Password integration and how does it work?">
+
+Several MAFF scripts support a credential cascade that reads secrets from 1Password instead of prompting interactively. This is controlled by four environment variables — a primary set (`KFI`) and a fallback set (`KGS`):
+
+| Variable | Purpose |
+|----------|---------|
+| `OP_KFI_USERNAME` | `op read` reference for the KFI account username |
+| `OP_KFI_PASSWORD` | `op read` reference for the KFI account password |
+| `OP_KGS_USERNAME` | `op read` reference for the KGS account username (fallback) |
+| `OP_KGS_PASSWORD` | `op read` reference for the KGS account password (fallback) |
+
+Set these to 1Password `op read`-compatible secret references in the format `op://VaultName/ItemName/FieldName`:
+
+```powershell
+# Primary credential set:
+$env:OP_KFI_USERNAME = "op://Work/DomainAccount/username"
+$env:OP_KFI_PASSWORD = "op://Work/DomainAccount/password"
+
+# Fallback credential set (used when KFI variables are absent):
+$env:OP_KGS_USERNAME = "op://Work/DomainAccount/username"
+$env:OP_KGS_PASSWORD = "op://Work/DomainAccount/password"
+```
+
+When a script needs credentials, it checks `OP_KFI_USERNAME` first. If the KFI variables are set and the `op` CLI is authenticated, it resolves the secrets without any interactive prompt. If the KFI variables are absent it falls back to the `OP_KGS_*` pair. If neither set is configured or the CLI is not signed in, the script falls back to `Get-Credential` (an interactive prompt).
+
+**Prerequisite:** Install the 1Password CLI and sign in:
+
+```powershell
+winget install AgileBits.1Password.CLI
+op signin
+```
+
+1Password integration is optional. Scripts that use it work correctly without it — they simply prompt for credentials instead.
+
+</Accordion>
+
+<Accordion title="How do I run tests without a Proxmox VM?">
+
+MAFF Proxmox automation scripts read target configuration from a `targets.json` file. To run scripts against your **local machine** instead of a Proxmox VM, set the active target to `local`:
+
+```json
+{
+  "active": "local",
+  "targets": {
+    "local": {
+      "host": "localhost",
+      "type": "local"
+    },
+    "proxmox-vm": {
+      "host": "192.168.1.100",
+      "type": "ssh"
+    }
+  }
+}
+```
+
+With `"active": "local"`, scripts skip SSH/Proxmox connection logic and execute directly on the current machine. This lets you validate script logic, test idempotency, and iterate quickly without needing a running VM.
+
+Restore Proxmox targeting when you are ready to deploy:
+
+```json
+{
+  "active": "proxmox-vm"
+}
+```
+
+</Accordion>
+
+<Accordion title="Where are log files stored?">
+
+Log file locations vary by tool:
+
+| Tool | Log Location |
+|------|-------------|
+| `winget-app-install.ps1` | `%APPDATA%\winget-app-setup\` |
+| Scheduled update helper | `%APPDATA%\winget-app-setup\update-checks\` |
+| Update configuration | `%APPDATA%\winget-app-setup\update-config.json` |
+| gitconfig auto-update | Logged to the platform job output (launchd / Task Scheduler / cron) |
+
+To view the winget-app-setup log directory:
+
+```powershell
+explorer "$env:APPDATA\winget-app-setup"
+```
+
+For the gitconfig auto-update job on Windows, view Task Scheduler history:
+
+```powershell
+Get-ScheduledTaskInfo -TaskName "Update-GitConfig" | Select-Object LastRunTime, LastTaskResult
+```
+
+On macOS, view the launchd agent output:
+
+```bash
+log show --predicate 'process == "bash"' --last 1h | grep gitconfig
+```
+
+On Linux, check your cron log:
+
+```bash
+grep gitconfig /var/log/syslog   # Debian/Ubuntu
+grep gitconfig /var/log/cron     # RHEL/Fedora
+```
+
+</Accordion>

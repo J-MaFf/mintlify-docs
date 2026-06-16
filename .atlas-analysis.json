@@ -1,0 +1,108 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "MAFF PowerShell Toolkit",
+  "projectDescription": "A suite of PowerShell automation tools for Windows IT management — covering app installation via WinGet, Active Directory administration, network diagnostics, date/region format management, and GUI test automation.",
+  "theme": "aspen",
+  "primaryColor": "#b21414",
+  "lightColor": "#d98888",
+  "darkColor": "#585858",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "WinGet App Setup",
+            "pages": [
+              "winget/overview",
+              "winget/installation",
+              "winget/parameters",
+              "winget/scheduled-updates"
+            ]
+          },
+          {
+            "group": "PowerShell Scripts",
+            "pages": [
+              "powershell/overview",
+              "powershell/active-directory",
+              "powershell/date-region-formats",
+              "powershell/network-tools",
+              "powershell/printer-management"
+            ]
+          },
+          {
+            "group": "ClickUp Task Extractor",
+            "pages": [
+              "clickup/overview",
+              "clickup/authentication",
+              "clickup/usage",
+              "clickup/ai-summaries"
+            ]
+          },
+          {
+            "group": "FlaUI PowerShell Tester",
+            "pages": [
+              "flaui/overview",
+              "flaui/setup",
+              "flaui/writing-tests",
+              "flaui/remote-vm"
+            ]
+          },
+          {
+            "group": "Git Config",
+            "pages": [
+              "gitconfig/overview",
+              "gitconfig/installation",
+              "gitconfig/aliases"
+            ]
+          },
+          {
+            "group": "Troubleshooting",
+            "pages": [
+              "troubleshooting/winget-issues",
+              "troubleshooting/ad-issues",
+              "troubleshooting/faq"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "One-liner WinGet app installation and update automation for Windows 10/11",
+    "Scheduled automatic app updates with rollback script generation and toast notifications",
+    "Active Directory user/computer management with ADWS-based querying",
+    "Remote date and region format standardization across Windows servers",
+    "Network diagnostics, printer management, and Windows Update utilities",
+    "ClickUp task export to Markdown, HTML, or CSV with optional AI summaries via Gemini",
+    "FlaUI-based PowerShell GUI automation testing with optional Proxmox VM isolation",
+    "Cross-platform Git configuration with curated aliases and interactive TUI browser",
+    "1Password credential integration across all tools",
+    "Pester-tested scripts with 100% pass rates for core modules"
+  ],
+  "publicApiSurface": [
+    "winget-app-install.ps1 -WhatIf | -SkipSystemCheck | -EnableScheduledUpdates | -DisableScheduledUpdates | -CheckForUpdates | -AutoInstallUpdates | -UpdateFrequency Weekly|Daily",
+    "winget-app-uninstall.ps1",
+    "Update-InstalledApps.ps1",
+    "Scripts/DateFormat/Get-UserDateFormats.ps1 -TargetUsers | -UserListFile | -Credential | -OutputPath",
+    "Scripts/DateFormat/Set-UserDateFormats.ps1 -TargetUsers | -UserListFile | -DateFormat | -Credential",
+    "Scripts/RegionFormat/Get-UserRegionFormats.ps1 -Credential",
+    "Scripts/RegionFormat/Set-UserRegionFormats.ps1 -RegionFormat | -TargetUsers | -Credential",
+    "Scripts/ActiveDirectory/Get-UserComputer.ps1 -Credential",
+    "Scripts/Network/Scan-Network.ps1",
+    "Scripts/Network/Ping-WithChime.ps1 -Target",
+    "Scripts/Printers/addNetworkPrinters.ps1",
+    "main.py --api-key | --output-format | --date-filter | --ai-summary | --gemini-api-key | --include-completed",
+    "kfj_task_extractor.py --list-id | --sheet-id | --dry-run | --date",
+    "tests/Run-Suite.ps1 -TestPath | -NoReset | -ResetAfter",
+    "lib/UiTestHelpers.psm1: Start-ScriptUnderTest | Stop-ScriptUnderTest | Find-UiElement | Invoke-UiClick | Set-UiText | Get-UiText | Save-FailureScreenshot",
+    "gitconfig_helper.py: git alias | git s | git lg | git cleanup | git main | git start | git pr | git skill-sync | git skill-publish"
+  ]
+}

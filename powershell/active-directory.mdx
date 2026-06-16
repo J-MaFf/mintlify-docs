@@ -1,0 +1,188 @@
+---
+title: "Active Directory Management with PowerShell Scripts"
+sidebarTitle: "Active Directory"
+description: "Use the ActiveDirectoryUtils module to query AD users, find last-logon workstations, manage group membership, and disable stale computer accounts."
+---
+
+The Active Directory scripts give you a consistent, credential-aware way to query and manage your domain without opening the ADUC console. All scripts import the `ActiveDirectoryUtils` module automatically, which handles RSAT validation, limited-mode fallback, and elevation prompts so you can focus on the task at hand.
+
+## The ActiveDirectoryUtils Module
+
+`ActiveDirectoryUtils` (v1.4.0) is the shared foundation for every AD script in the toolkit. Import it once at the start of your session, and all exported functions become available directly.
+
+```powershell
+Import-Module .\Modules\ActiveDirectoryUtils\ActiveDirectoryUtils.psd1
+```
+
+<Note>
+  On import, the module checks whether the RSAT Active Directory tools are installed. If they are missing and your session is elevated, it installs them automatically. If installation is not possible, the module loads in **limited mode** and warns you — it will not crash your session.
+</Note>
+
+### Exported Functions
+
+| Function | Description |
+|---|---|
+| `Initialize-ActiveDirectorySupport` | Checks AD readiness and returns an object with `IsAvailable`, `LimitedMode`, and `Message` properties. Call this at the start of scripts that depend on AD cmdlets. |
+| `Get-UserInfo` | Returns display name, last logon date, password last set date, password expiry date, days until expiry, and password status for one or more users. Accepts pipeline input. |
+| `Get-UserComputer` | Queries domain controller Security logs for event ID 4624 and returns the workstation where a user most recently authenticated. |
+| `Get-ComputerLastLogon` | Queries all discoverable domain controllers and returns the newest `LastLogon` timestamp recorded for a computer account. |
+| `Test-Admin-Privileges` | Returns `$true` when the current session has administrator rights. |
+| `Get-DomainName` | Prompts for a domain name, validates it against AD, and returns the formatted LDAP distinguished name. |
+| `Select-OrganizationalUnits` | Interactively collects and validates one or more OU or container distinguished names within a domain. |
+| `Test-Group` | Confirms that an AD group exists and returns the group object. |
+
+<Note>
+  AD queries use **Active Directory Web Services (ADWS) on port 9389**, not PowerShell Remoting. Ensure your workstation can reach your domain controllers on that port.
+</Note>
+
+### Using Get-UserInfo
+
+`Get-UserInfo` returns a `PSCustomObject` you can format, export, or pipe to other commands.
+
+```powershell
+# Single user
+Get-UserInfo -Username 'jsmith'
+
+# Multiple users via pipeline
+'jsmith', 'adoe', 'bwhite' | Get-UserInfo
+
+# Query a specific domain controller with delegated credentials
+$creds = Get-Credential
+Get-UserInfo -Username 'jsmith' -Server 'dc01.contoso.com' -Credential $creds
+
+# Export results to CSV
+'jsmith', 'adoe' | Get-UserInfo | Export-Csv -Path 'C:\Reports\UserInfo.csv' -NoTypeInformation
+```
+
+The returned object contains these properties:
+
+| Property | Description |
+|---|---|
+| `DisplayName` | Full display name from Active Directory |
+| `Username` | SamAccountName |
+| `LastLogonDate` | Most recent domain logon recorded by the PDC |
+| `PasswordLastSet` | When the password was last changed |
+| `PasswordExpiryDate` | Calculated expiry date (or `"Never"` if exempt) |
+| `DaysUntilExpiry` | Integer days remaining, or `"N/A"` / `"Unknown"` |
+| `PasswordNeverExpires` | Boolean flag |
+| `PasswordStatus` | Human-readable summary string |
+
+---
+
+## Key Scripts
+
+### Get-UserComputer.ps1
+
+Finds the most recent workstation where a user authenticated by searching Security event logs (event ID 4624) across all domain controllers.
+
+```powershell
+# Basic lookup — prompts for elevation or credentials if needed
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith'
+
+# Return the latest event from every domain controller
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -ReturnAllEvents
+
+# Supply delegated credentials to avoid an elevation prompt
+$creds = Get-Credential
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -Credential $creds
+
+# Target a specific domain controller
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -DomainController 'dc01.contoso.com'
+```
+
+<Tip>
+  When you run the script without administrator rights and without `-Credential`, it offers to relaunch itself elevated while preserving all the arguments you supplied. Supply `-Credential` to skip the elevation prompt entirely.
+</Tip>
+
+**Output fields:** `UserName`, `TimeCreated`, `Workstation`, `DomainController`, `WorkstationSource`, `SourceNetworkAddress`, `LogonType`, `LogonTypeDescription`
+
+---
+
+### Add-UsersInOuToGroup.ps1
+
+Bulk-adds or bulk-removes every user in one or more OUs to a target AD group. The script guides you through domain, OU, and group selection interactively and writes a transcript to an `Output/` subfolder beside the script.
+
+```powershell
+# Run interactively — the script prompts for domain, OUs, group, and action
+.\Scripts\ActiveDirectory\Add-UsersInOuToGroup.ps1
+```
+
+<Warning>
+  This script requires administrator privileges. It will exit with an error if the current session is not elevated.
+</Warning>
+
+**What happens at each prompt:**
+
+1. **Domain** — enter `contoso.com`; the script validates and formats it to `DC=contoso,DC=com`.
+2. **OUs / Containers** — enter one name at a time (e.g., `Sales`); press Enter with no input to finish.
+3. **Group name** — the script verifies the group exists before proceeding.
+4. **Action** — type `add` or `remove`.
+
+---
+
+### Disable-AndMoveComputers.ps1
+
+Reads a list of computer names from a text file, disables each computer account in AD, and moves it to a designated "Not Active" OU. Lines starting with `#` are treated as comments and skipped.
+
+```powershell
+# Disable and move computers from a list file
+.\Scripts\ActiveDirectory\Disable-AndMoveComputers.ps1 -ComputerListFile 'C:\lists\stale-pcs.txt'
+
+# Target a custom destination OU
+.\Scripts\ActiveDirectory\Disable-AndMoveComputers.ps1 `
+    -ComputerListFile 'C:\lists\stale-pcs.txt' `
+    -DestinationOU 'OU=Inactive,OU=Computers,DC=contoso,DC=local'
+
+# Preview changes without modifying AD
+.\Scripts\ActiveDirectory\Disable-AndMoveComputers.ps1 `
+    -ComputerListFile 'C:\lists\stale-pcs.txt' `
+    -WhatIf
+
+# Use delegated credentials
+$creds = Get-Credential
+.\Scripts\ActiveDirectory\Disable-AndMoveComputers.ps1 `
+    -ComputerListFile 'C:\lists\stale-pcs.txt' `
+    -Credential $creds
+```
+
+**Parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `-ComputerListFile` | Yes | Path to a `.txt` file with one computer name per line. Comment lines start with `#`. |
+| `-DestinationOU` | No | Distinguished name of the target OU. Defaults to `OU=Not Active (PC),DC=<domain>,DC=<tld>` — update this to match your environment. |
+| `-Credential` | No | Delegated `PSCredential` for AD access. |
+| `-WhatIf` | No | Dry-run mode — shows what would change without applying it. |
+
+---
+
+### Get-UserExpiryInfo.ps1
+
+A thin wrapper around `Get-UserInfo` that accepts one or more identities and displays password expiry details. Useful for quick lookups without importing the module manually.
+
+```powershell
+# Single user
+.\Scripts\ActiveDirectory\Get-UserExpiryInfo.ps1 -Identity 'jsmith'
+
+# Multiple users via pipeline
+'jsmith', 'adoe' | .\Scripts\ActiveDirectory\Get-UserExpiryInfo.ps1
+```
+
+---
+
+### Get-ComputerLastOnline.ps1
+
+Wraps `Get-ComputerLastLogon` from the module and displays the most recent `LastLogon` timestamp found across all domain controllers for one or more computers.
+
+```powershell
+# Single computer
+.\Scripts\ActiveDirectory\Get-ComputerLastOnline.ps1 -ComputerName 'PC01'
+
+# Multiple computers via pipeline
+'PC01', 'PC02' | .\Scripts\ActiveDirectory\Get-ComputerLastOnline.ps1
+
+# Limit to a specific domain controller
+.\Scripts\ActiveDirectory\Get-ComputerLastOnline.ps1 -ComputerName 'PC01' -DomainController 'dc01.contoso.com'
+```
+
+**Output fields:** `ComputerName`, `DomainController`, `LastLogon`

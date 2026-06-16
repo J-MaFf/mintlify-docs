@@ -1,0 +1,117 @@
+---
+title: "PowerShell Scripts for Enterprise IT Management"
+sidebarTitle: "Overview"
+description: "A complete collection of PowerShell scripts and modules for Active Directory, date and region formatting, network diagnostics, and printer management."
+---
+
+The MAFF PowerShell Toolkit is an enterprise-ready collection of scripts and reusable modules that automate common Windows system administration tasks. Whether you need to standardize date formats across dozens of remote servers, track down a user's last logon workstation, scan your network, or fix a broken print spooler, the toolkit provides a consistent, credential-aware workflow that fits into your existing PowerShell sessions.
+
+## Prerequisites
+
+Before running any script, confirm your environment meets these requirements.
+
+<Steps>
+  <Step title="Install PowerShell 7 or later">
+    PowerShell 7+ is recommended for best compatibility. Windows PowerShell 5.1 works for most scripts but lacks certain performance improvements.
+
+    ```powershell
+    # Verify your version
+    $PSVersionTable.PSVersion
+    ```
+  </Step>
+
+  <Step title="Set the execution policy">
+    Allow locally written scripts to run without requiring a digital signature.
+
+    ```powershell
+    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    ```
+  </Step>
+
+  <Step title="Install RSAT Active Directory tools">
+    Active Directory scripts require the RSAT AD DS tools. The `ActiveDirectoryUtils` module attempts automatic installation when run as an administrator, but you can install manually:
+
+    ```powershell
+    # Modern Windows capability method (preferred)
+    Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
+    ```
+  </Step>
+
+  <Step title="Enable PowerShell Remoting">
+    Date, region, and IP reset scripts use WS-Man remoting to reach remote servers. Enable it once on each target machine.
+
+    ```powershell
+    Enable-PSRemoting -Force
+    ```
+  </Step>
+</Steps>
+
+## Script Categories
+
+<CardGroup cols={2}>
+  <Card title="Active Directory" icon="users" href="/powershell/active-directory">
+    Query user info, find last logon workstations, manage group membership, and disable stale computer accounts using the `ActiveDirectoryUtils` module.
+  </Card>
+  <Card title="Date & Region Formats" icon="calendar" href="/powershell/date-region-formats">
+    Remotely read and standardize Windows short date formats and region locale settings across all user profiles on your servers.
+  </Card>
+  <Card title="Network Tools" icon="network-wired" href="/powershell/network-tools">
+    Scan networks, run enhanced pings with audio alerts, resolve hostnames from IPs, reset IP stacks, fix RDP, and validate MAC addresses.
+  </Card>
+  <Card title="Printer Management" icon="print" href="/powershell/printer-management">
+    Batch-install network printers, diagnose print error 0x0000006ba, and automatically restart a failed Print Spooler service.
+  </Card>
+</CardGroup>
+
+## Credential Setup
+
+Most scripts accept an optional `-Credential` parameter. Capture your credentials once and pass the variable to every script in your session — you will not be prompted again.
+
+```powershell
+# Capture credentials interactively once
+$creds = Get-Credential -UserName 'DOMAIN\admin-username'
+
+# Pass to any script that accepts -Credential
+.\Scripts\iKAT\Registry\DateFormat\Get-UserDateFormats.ps1 -Credential $creds
+.\Scripts\iKAT\Registry\RegionFormat\Set-UserRegionFormats.ps1 -RegionFormat 'en-US' -Credential $creds
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -Credential $creds
+```
+
+<Note>
+  Remote operations use PowerShell Remoting over WS-Man (WinRM). Active Directory queries use Active Directory Web Services (ADWS) on port 9389 — not WinRM. Make sure both ports are reachable on your domain controllers and target servers.
+</Note>
+
+## 1Password Integration
+
+If you use 1Password in your environment, the toolkit can retrieve credentials automatically so scripts run unattended. The 1Password CLI (`op`) must be installed and signed in. Set the following environment variables before launching your session — the toolkit tries KFI credentials first, then falls back to KGS:
+
+| Variable | Purpose |
+|----------|---------|
+| `OP_KFI_USERNAME` | 1Password secret reference for the KFI domain username |
+| `OP_KFI_PASSWORD` | 1Password secret reference for the KFI domain password |
+| `OP_KGS_USERNAME` | 1Password secret reference for the KGS domain username |
+| `OP_KGS_PASSWORD` | 1Password secret reference for the KGS domain password |
+
+```powershell
+# Set before running scripts (or add to your PowerShell profile)
+$env:OP_KFI_USERNAME = 'op://vault/item/username'
+$env:OP_KFI_PASSWORD = 'op://vault/item/password'
+```
+
+<Note>
+  When a `-Credential` parameter is supplied directly, it always takes precedence over the 1Password fallback. If neither is provided and 1Password is unavailable, scripts prompt you interactively.
+</Note>
+
+## Importing the Modules
+
+The two reusable modules power most of the toolkit's scripts. Import them at the start of your session:
+
+```powershell
+# From the repository root
+Import-Module .\Modules\ActiveDirectoryUtils\ActiveDirectoryUtils.psd1
+Import-Module .\Modules\RegistryUtils\RegistryUtils.psd1
+```
+
+<Tip>
+  The `ActiveDirectoryUtils` module checks for RSAT on import and attempts installation automatically when your session is elevated. If it cannot install RSAT, it loads in a limited mode and emits a warning — it will not throw a terminating error.
+</Tip>

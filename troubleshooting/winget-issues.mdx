@@ -1,0 +1,191 @@
+---
+title: "Fix Common WinGet App Setup Installation Problems"
+sidebarTitle: "WinGet Issues"
+description: "Diagnose and resolve the most common winget-app-setup errors, including source corruption, pre-flight failures, elevation issues, and missing modules."
+---
+
+The `winget-app-install.ps1` script is designed to be self-healing: it repairs corrupt sources, auto-installs missing modules, retries failed installs, and elevates itself when needed. Most problems resolve on their own. When they do not, the sections below explain exactly what is happening and how to fix it.
+
+<Accordion title="Script fails with 'Access Denied' or does not start">
+
+The script requires **Administrator privileges** to install packages system-wide, add entries to the system PATH, and register scheduled tasks.
+
+**What the script does automatically:** When you run the script without elevation, it detects the non-elevated context and relaunches itself in an elevated session. If Windows Terminal is installed, it opens in a new elevated Windows Terminal tab. Otherwise it falls back to a standard elevated PowerShell window. You will see a UAC prompt during the relaunch.
+
+**If auto-elevation fails** (for example, when running via `Invoke-Expression` from a remote URL), auto-elevation is not available because there is no local script file to relaunch. Open an elevated PowerShell window manually and run the command again:
+
+```powershell
+# Open an elevated PowerShell or Windows Terminal, then:
+.\winget-app-install.ps1
+```
+
+**If the UAC prompt is suppressed** by Group Policy, contact your system administrator to allow standard users to consent to elevation, or ask an administrator to run the script directly.
+
+</Accordion>
+
+<Accordion title="Winget source corruption — error code 0x8a15000f">
+
+Error `0x8a15000f` means the local winget source cache is corrupted or contains missing data. The script detects this automatically by running a test search against the `winget` source and checking for the corruption error pattern.
+
+**What the script does automatically:**
+1. Runs `winget source reset --force` to wipe and re-register the default sources.
+2. Re-registers the source package from the Microsoft CDN: `Add-AppxPackage -Path 'https://cdn.winget.microsoft.com/cache/source.msix'`
+3. Retries the source check. If the source is healthy, installation continues without any further action on your part.
+
+**If the auto-repair fails**, run the repair manually in a **non-elevated** PowerShell session (source package registration is per-user and must run as the standard user, not as Administrator):
+
+```powershell
+# Run as your normal user account (not elevated):
+Add-AppxPackage -Path "https://cdn.winget.microsoft.com/cache/source.msix"
+```
+
+Then verify the source is functional:
+
+```powershell
+winget source list
+winget search 7zip --source winget
+```
+
+If the search returns results without error, the source is healthy and you can re-run the install script.
+
+</Accordion>
+
+<Accordion title="Pre-flight check failures">
+
+Before installing anything, the script validates three system requirements. A failure in any of them stops or warns the installation.
+
+**OS Version check (warning, non-blocking)**
+
+The script checks that your Windows build is 19044 or higher (Windows 10 21H2). Older builds display a warning but do not block the install. Upgrade Windows to ensure full winget compatibility:
+
+```powershell
+# Check your current build:
+[System.Environment]::OSVersion.Version.Build
+```
+
+**Disk space check (warning, prompts to continue)**
+
+The script requires at least **50 GB free on the C: drive**. If less is available, it prompts you to confirm before continuing. To check free space:
+
+```powershell
+Get-PSDrive -Name C | Select-Object -Property Used, Free
+```
+
+Free up space or confirm the prompt to continue anyway.
+
+**Network check (blocking)**
+
+The script tests connectivity to `cdn.winget.microsoft.com:443`. If this check fails, the script exits because winget cannot download packages without network access.
+
+Verify connectivity:
+
+```powershell
+Test-NetConnection -ComputerName cdn.winget.microsoft.com -Port 443
+```
+
+If the connection fails, check that:
+- Your network interface is active.
+- A firewall or proxy is not blocking outbound HTTPS traffic to `cdn.winget.microsoft.com`.
+- You are not on a restricted corporate network that requires a proxy configuration.
+
+To bypass pre-flight checks entirely (for automated or headless scenarios):
+
+```powershell
+.\winget-app-install.ps1 -SkipSystemCheck
+```
+
+</Accordion>
+
+<Accordion title="Individual app install fails">
+
+When an individual package fails to install, the script automatically **retries it once** before reporting the failure in the summary table.
+
+**What the script does automatically:**
+1. Attempts the installation using `winget install -e --accept-source-agreements --accept-package-agreements --source winget --id <package>`.
+2. Verifies the install succeeded by running `winget list --exact --id <package>`.
+3. After all packages have been processed, any that failed are collected and retried once before the final summary is produced.
+
+**Manual retry:** If an app still shows as `Failed` in the summary, re-run the script — it skips already-installed packages and only attempts the failed ones again.
+
+To install a specific package manually and verify:
+
+```powershell
+winget install -e --accept-source-agreements --accept-package-agreements --source winget --id <PackageId>
+winget list --exact --id <PackageId>
+```
+
+Check the winget source is healthy first if the error mentions missing manifests or hash mismatches:
+
+```powershell
+winget source list
+winget source reset --force
+```
+
+</Accordion>
+
+<Accordion title="Microsoft.WinGet.Client module missing">
+
+The `Microsoft.WinGet.Client` PowerShell module provides richer update detection and package management than the raw `winget` CLI. The script uses it when available and falls back to CLI commands when it is not.
+
+**What the script does automatically:** On each run, the script checks for `Microsoft.WinGet.Client` via `Get-Module -ListAvailable`. If it is missing, the script installs it from the PowerShell Gallery (including the NuGet provider if needed):
+
+```powershell
+Install-Module -Name Microsoft.WinGet.Client -Scope AllUsers -Force -AllowClobber
+```
+
+**If the automatic install fails**, install the module manually in an elevated PowerShell session:
+
+```powershell
+# Ensure NuGet provider is present:
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers
+
+# Install the module:
+Install-Module -Name Microsoft.WinGet.Client -Scope AllUsers -Force -AllowClobber
+
+# Verify:
+Get-Module -ListAvailable -Name Microsoft.WinGet.Client
+```
+
+<Note>
+The script functions correctly without `Microsoft.WinGet.Client` — it uses `winget` CLI commands as a fallback. You only lose the richer update detection and `Update-WinGetPackage` integration.
+</Note>
+
+</Accordion>
+
+<Accordion title="Scheduled update task not running">
+
+The script can optionally enable a Windows Scheduled Task (`WingetAppSetup-ScheduledUpdates`) that checks for and installs package updates on a recurring schedule. If the task appears in Task Scheduler but does not run, check the following.
+
+**Task details:**
+
+| Property | Value |
+|----------|-------|
+| Task name | `WingetAppSetup-ScheduledUpdates` |
+| Task path | `\winget-app-setup\` |
+| Default schedule | Every Sunday at 2:00 AM |
+| Helper script location | `%APPDATA%\winget-app-setup\Update-InstalledApps.ps1` |
+
+**Check task status in Task Scheduler:**
+
+```powershell
+Get-ScheduledTask -TaskName "WingetAppSetup-ScheduledUpdates" -TaskPath "\winget-app-setup\"
+```
+
+**Common reasons the task does not run:**
+- The machine is asleep at the scheduled time. The task is configured with **Start when available**, so it will run at the next opportunity after the machine wakes.
+- The task was registered under a different user account. Open Task Scheduler (`taskschd.msc`), navigate to `\winget-app-setup\`, and confirm the task's principal matches your current user.
+- The helper script was moved or deleted. Re-run the install script to restore it to `%APPDATA%\winget-app-setup\`.
+
+**Re-enable scheduled updates:**
+
+```powershell
+.\winget-app-install.ps1 -EnableScheduledUpdates -UpdateFrequency Weekly
+```
+
+**Disable scheduled updates:**
+
+```powershell
+.\winget-app-install.ps1 -DisableScheduledUpdates
+```
+
+</Accordion>

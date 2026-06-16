@@ -1,0 +1,199 @@
+---
+title: "Export ClickUp Tasks to Markdown, HTML, and CSV Files"
+sidebarTitle: "Usage"
+description: "Run the extractor interactively or non-interactively, choose an output format, filter by date, and sync open tasks to Google Sheets."
+---
+
+The extractor gives you two ways to run it: an interactive mode that prompts you for every setting at runtime, and a non‑interactive mode where you supply all options as CLI flags. Both modes write the result to a timestamped file under `output/` — or directly to a Google Sheet when you use the Sheets sync script.
+
+## Basic usage
+
+### Interactive mode
+
+Run the script with no arguments and it walks you through each option — interactive task selection, AI summaries, and output format — before exporting:
+
+```bash
+python main.py
+```
+
+Pass `--interactive` explicitly to skip the "do you want interactive mode?" prompt and jump straight into task review:
+
+```bash
+python main.py --interactive
+```
+
+### Non‑interactive mode
+
+Supply all options as flags to run without any prompts. This is useful for automation and scheduled tasks:
+
+```bash
+python main.py --api-key YOUR_KEY --output-format HTML --date-filter ThisWeek
+```
+
+## CLI options
+
+<ParamField path="--api-key" type="string">
+  Your ClickUp API key. If omitted, the extractor works through the [authentication chain](/clickup/authentication) automatically.
+</ParamField>
+
+<ParamField path="--workspace" type="string">
+  The name of the ClickUp workspace to target. Defaults to the workspace configured at install time.
+</ParamField>
+
+<ParamField path="--space" type="string">
+  The name of the ClickUp space within the workspace to extract tasks from. Defaults to the space configured at install time.
+</ParamField>
+
+<ParamField path="--list" type="string">
+  An optional specific list name to extract tasks from within the selected space. When omitted, tasks are pulled from all lists in the space.
+</ParamField>
+
+<ParamField path="--output" type="string">
+  Path for the exported file. Defaults to an auto‑generated timestamped path such as `output/WeeklyTaskList_1-8-2025_3-45PM.md`.
+</ParamField>
+
+<ParamField path="--output-format" type="string" default="Markdown">
+  Export format. Accepted values: `Markdown`, `HTML`, `CSV`. When omitted in a terminal session, the extractor prompts you to choose.
+</ParamField>
+
+<ParamField path="--include-completed" type="boolean">
+  When set, completed and archived tasks are included in the export. By default only open tasks are exported.
+</ParamField>
+
+<ParamField path="--date-filter" type="string" default="AllOpen">
+  Restrict tasks by date range. Accepted values: `AllOpen`, `ThisWeek`, `LastWeek`.
+</ParamField>
+
+<ParamField path="--interactive" type="boolean">
+  Enable interactive task selection. The extractor displays each task in the terminal and lets you choose which ones to include before writing the file.
+</ParamField>
+
+<ParamField path="--ai-summary" type="boolean">
+  Enable AI‑generated summaries for each task using Google Gemini. Requires a Gemini API key — see [AI Summaries](/clickup/ai-summaries).
+</ParamField>
+
+<ParamField path="--ai-source" type="string" default="Both">
+  Which AI source to use for summaries. Accepted values: `Both` (prefer the ClickUp AI custom field, fall back to Gemini), `ClickUp`, or `Gemini`. See [AI Summaries](/clickup/ai-summaries) for details.
+</ParamField>
+
+<ParamField path="--gemini-api-key" type="string">
+  Your Google Gemini API key. Only needed when `--ai-summary` is set and the key is not available from the environment or 1Password.
+</ParamField>
+
+## Output formats
+
+<Tabs>
+  <Tab title="Markdown">
+    The default format. Produces a structured `.md` file with sections for each task, including status, priority, ETA, and notes. Optimised for readability and Markdown lint compliance.
+
+    ```bash
+    python main.py --output-format Markdown
+    ```
+
+    Dates appear in `M/D/YYYY at H:MM AM/PM` format with no leading zeros (e.g. `10/7/2025 at 3:45 PM`).
+  </Tab>
+
+  <Tab title="HTML">
+    Produces a self‑contained `.html` file with professional CSS table styling. Use this when you need a shareable, browser‑readable report.
+
+    ```bash
+    python main.py --output-format HTML
+    ```
+  </Tab>
+
+  <Tab title="CSV">
+    Produces a `.csv` file suited for import into spreadsheet tools. Each row represents one task with columns for Task, Company, Branch, Priority, Status, ETA, and Notes.
+
+    ```bash
+    python main.py --output-format CSV
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Tasks are sorted by priority (Urgent → High → Normal → Low) and then alphabetically by task name within each priority tier. The following statuses are excluded by default: **Blocked**, **Dormant**, **On Hold**, **Document**. Pass `--include-completed` to also include tasks in closed/archived states.
+</Note>
+
+## Date filters
+
+| Value | Tasks included |
+|---|---|
+| `AllOpen` (default) | Every open task regardless of due date |
+| `ThisWeek` | Open tasks with a due date falling in the current calendar week |
+| `LastWeek` | Open tasks with a due date falling in the previous calendar week |
+
+```bash
+# Export only tasks due this week
+python main.py --date-filter ThisWeek
+
+# Export tasks due last week, including completed ones
+python main.py --date-filter LastWeek --include-completed
+```
+
+## Google Sheets sync
+
+`kfj_task_extractor.py` is a standalone script that pulls all open tasks from a configured ClickUp list and writes them to a weekly Google Sheet. It creates a new worksheet tab named with the current date and renames the workbook title to match. Re‑running on the same day is idempotent — the existing tab's contents are replaced instead of duplicated.
+
+### One‑time setup
+
+Before your first real run:
+
+1. Enable the **Google Sheets API** in your GCP project for the service account.
+2. Share the target spreadsheet with the service account's `client_email` as **Editor**.
+3. Make both the ClickUp API key and the Google service account JSON available via environment variable or 1Password.
+4. Install the `gspread` dependency: `pip install -r requirements.txt`.
+
+### Sheets sync CLI options
+
+<ParamField path="--list-id" type="string">
+  The ClickUp list ID to extract from. Defaults to the list ID configured at install time.
+</ParamField>
+
+<ParamField path="--sheet-id" type="string">
+  The Google Sheets workbook ID to write to. Defaults to the spreadsheet configured at install time.
+</ParamField>
+
+<ParamField path="--dry-run" type="boolean">
+  Fetches tasks and prints the rows to the terminal without writing anything to Google Sheets. Use this to verify output before committing a change.
+</ParamField>
+
+<ParamField path="--date" type="string">
+  Override the date used in the tab name, formatted as `M/D/YY` (e.g. `6/10/26`). Useful for backfilling a past week.
+</ParamField>
+
+### Sheets sync examples
+
+```bash
+# Standard weekly run — resolves secrets via 1Password desktop auth
+python kfj_task_extractor.py
+
+# Preview rows without touching the sheet
+python kfj_task_extractor.py --dry-run
+
+# Backfill a specific date
+python kfj_task_extractor.py --date 6/10/26
+
+# Inject secrets explicitly via op run
+op run --account my.1password.com --env-file=.env.kfj -- python kfj_task_extractor.py
+```
+
+The Google service account JSON credential is resolved in memory and never written to disk. The script looks for it in the `GOOGLE_SHEETS_CREDENTIALS_JSON` environment variable first, then falls back to the 1Password SDK and CLI.
+
+## Common command combinations
+
+```bash
+# Interactive run with AI summaries and HTML output
+python main.py --interactive --ai-summary --output-format HTML
+
+# Non-interactive, this week's tasks only, Markdown output
+python main.py --api-key YOUR_KEY --date-filter ThisWeek --output-format Markdown
+
+# Include completed tasks, export to CSV
+python main.py --include-completed --output-format CSV
+
+# Target a specific list, use Gemini for summaries
+python main.py --space "Engineering" --list "Sprint 42" --ai-summary --ai-source Gemini
+
+# Export to a specific file path
+python main.py --output reports/weekly-review.md
+```
