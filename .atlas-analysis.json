@@ -1,7 +1,7 @@
 {
   "projectType": "cli-tool",
-  "projectName": "MAFF PowerShell Toolkit",
-  "projectDescription": "A suite of PowerShell automation tools for Windows IT management — covering app installation via WinGet, Active Directory administration, network diagnostics, date/region format management, and GUI test automation.",
+  "projectName": "J-MaFf's Repos",
+  "projectDescription": "Documentation hub for J-MaFf's most-used repositories — covering Windows app installation via WinGet, Active Directory administration, network diagnostics, date/region format management, ClickUp task extraction, FlaUI GUI test automation, and cross-platform Git config.",
   "theme": "aspen",
   "primaryColor": "#b21414",
   "lightColor": "#d98888",
