@@ -4,7 +4,7 @@ sidebarTitle: "Overview"
 description: "A complete collection of PowerShell scripts and modules for Active Directory, date and region formatting, network diagnostics, and printer management."
 ---
 
-The MAFF PowerShell Toolkit is an enterprise-ready collection of scripts and reusable modules that automate common Windows system administration tasks. Whether you need to standardize date formats across dozens of remote servers, track down a user's last logon workstation, scan your network, or fix a broken print spooler, the toolkit provides a consistent, credential-aware workflow that fits into your existing PowerShell sessions.
+J-MaFf's PowerShell Toolkit is an enterprise-ready collection of scripts and reusable modules that automate common Windows system administration tasks. Whether you need to standardize date formats across dozens of remote servers, track down a user's last logon workstation, scan your network, or fix a broken print spooler, the toolkit provides a consistent, credential-aware workflow that fits into your existing PowerShell sessions.
 
 ## Prerequisites
 
@@ -12,14 +12,13 @@ Before running any script, confirm your environment meets these requirements.
 
 <Steps>
   <Step title="Install PowerShell 7 or later">
-    PowerShell 7+ is recommended for best compatibility. Windows PowerShell 5.1 works for most scripts but lacks certain performance improvements.
+    PowerShell 7\+ is recommended for best compatibility. Windows PowerShell 5.1 works for most scripts but lacks certain performance improvements.
 
     ```powershell
     # Verify your version
     $PSVersionTable.PSVersion
     ```
   </Step>
-
   <Step title="Set the execution policy">
     Allow locally written scripts to run without requiring a digital signature.
 
@@ -27,7 +26,6 @@ Before running any script, confirm your environment meets these requirements.
     Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
     ```
   </Step>
-
   <Step title="Install RSAT Active Directory tools">
     Active Directory scripts require the RSAT AD DS tools. The `ActiveDirectoryUtils` module attempts automatic installation when run as an administrator, but you can install manually:
 
@@ -36,7 +34,6 @@ Before running any script, confirm your environment meets these requirements.
     Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
     ```
   </Step>
-
   <Step title="Enable PowerShell Remoting">
     Date, region, and IP reset scripts use WS-Man remoting to reach remote servers. Enable it once on each target machine.
 
@@ -52,12 +49,15 @@ Before running any script, confirm your environment meets these requirements.
   <Card title="Active Directory" icon="users" href="/powershell/active-directory">
     Query user info, find last logon workstations, manage group membership, and disable stale computer accounts using the `ActiveDirectoryUtils` module.
   </Card>
+
   <Card title="Date & Region Formats" icon="calendar" href="/powershell/date-region-formats">
     Remotely read and standardize Windows short date formats and region locale settings across all user profiles on your servers.
   </Card>
+
   <Card title="Network Tools" icon="network-wired" href="/powershell/network-tools">
     Scan networks, run enhanced pings with audio alerts, resolve hostnames from IPs, reset IP stacks, fix RDP, and validate MAC addresses.
   </Card>
+
   <Card title="Printer Management" icon="print" href="/powershell/printer-management">
     Batch-install network printers, diagnose print error 0x0000006ba, and automatically restart a failed Print Spooler service.
   </Card>
@@ -86,7 +86,7 @@ $creds = Get-Credential -UserName 'DOMAIN\admin-username'
 If you use 1Password in your environment, the toolkit can retrieve credentials automatically so scripts run unattended. The 1Password CLI (`op`) must be installed and signed in. Set the following environment variables before launching your session — the toolkit tries KFI credentials first, then falls back to KGS:
 
 | Variable | Purpose |
-|----------|---------|
+| --- | --- |
 | `OP_KFI_USERNAME` | 1Password secret reference for the KFI domain username |
 | `OP_KFI_PASSWORD` | 1Password secret reference for the KFI domain password |
 | `OP_KGS_USERNAME` | 1Password secret reference for the KGS domain username |

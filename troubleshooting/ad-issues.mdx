@@ -7,196 +7,186 @@ description: "Resolve ActiveDirectoryUtils errors including limited mode warning
 The `ActiveDirectoryUtils` module is built to degrade gracefully — it attempts to install RSAT automatically, flags missing dependencies clearly, and surfaces a `LimitedMode` state so scripts can decide how to proceed rather than crashing silently. The sections below cover the most common problems and how to fix them.
 
 <Accordion title='"Limited Mode" warning on module import'>
+  When you import `ActiveDirectoryUtils` and see a message like **"Module will be loaded in limited mode — ActiveDirectory functions will not work until RSAT is installed"**, it means the `ActiveDirectory` PowerShell module (part of RSAT) is not available in the current session.
 
-When you import `ActiveDirectoryUtils` and see a message like **"Module will be loaded in limited mode — ActiveDirectory functions will not work until RSAT is installed"**, it means the `ActiveDirectory` PowerShell module (part of RSAT) is not available in the current session.
+  **What the module does automatically:**
 
-**What the module does automatically:**
+  - If the session is **elevated (Administrator)**, the module attempts to install RSAT automatically using `Add-WindowsCapability` (modern Windows capability method) or `Enable-WindowsOptionalFeature` (legacy fallback).
+  - If the session is **not elevated**, the module sets `$global:ActiveDirectoryUtils_LimitedMode = $true` and continues loading without AD cmdlets.
 
-- If the session is **elevated (Administrator)**, the module attempts to install RSAT automatically using `Add-WindowsCapability` (modern Windows capability method) or `Enable-WindowsOptionalFeature` (legacy fallback).
-- If the session is **not elevated**, the module sets `$global:ActiveDirectoryUtils_LimitedMode = $true` and continues loading without AD cmdlets.
+  **Check readiness before running AD scripts:**
 
-**Check readiness before running AD scripts:**
+  ```powershell
+  Import-Module ActiveDirectoryUtils
+  $adSupport = Initialize-ActiveDirectorySupport
+  if (-not $adSupport.IsAvailable) {
+      Write-Warning $adSupport.Message
+      return
+  }
+  # Safe to use Get-AD* cmdlets here
+  ```
 
-```powershell
-Import-Module ActiveDirectoryUtils
-$adSupport = Initialize-ActiveDirectorySupport
-if (-not $adSupport.IsAvailable) {
-    Write-Warning $adSupport.Message
-    return
-}
-# Safe to use Get-AD* cmdlets here
-```
+  **Install RSAT manually** in an elevated PowerShell session:
 
-**Install RSAT manually** in an elevated PowerShell session:
+  ```powershell
+  # Modern method (Windows 10/11, Windows Server 2019+):
+  Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
+  
+  # Legacy method (Windows Server 2016 and older):
+  Enable-WindowsOptionalFeature -Online -FeatureName RSATClient-Roles-AD-Powershell
+  ```
 
-```powershell
-# Modern method (Windows 10/11, Windows Server 2019+):
-Add-WindowsCapability -Online -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0
+  After installation, re-import the module and verify:
 
-# Legacy method (Windows Server 2016 and older):
-Enable-WindowsOptionalFeature -Online -FeatureName RSATClient-Roles-AD-Powershell
-```
-
-After installation, re-import the module and verify:
-
-```powershell
-Import-Module ActiveDirectoryUtils -Force
-(Initialize-ActiveDirectorySupport).IsAvailable   # Should return True
-```
-
+  ```powershell
+  Import-Module ActiveDirectoryUtils -Force
+  (Initialize-ActiveDirectorySupport).IsAvailable   # Should return True
+  ```
 </Accordion>
 
 <Accordion title="ADWS connection fails — cannot reach domain controller">
+  The `ActiveDirectoryUtils` module communicates with domain controllers using **Active Directory Web Services (ADWS)** on **port 9389**, not PowerShell remoting. If AD cmdlets fail with a connection error, port 9389 is the first thing to check.
 
-The `ActiveDirectoryUtils` module communicates with domain controllers using **Active Directory Web Services (ADWS)** on **port 9389**, not PowerShell remoting. If AD cmdlets fail with a connection error, port 9389 is the first thing to check.
+  **Verify port 9389 is reachable:**
 
-**Verify port 9389 is reachable:**
+  ```powershell
+  Test-NetConnection -ComputerName <your-dc-hostname> -Port 9389
+  ```
 
-```powershell
-Test-NetConnection -ComputerName <your-dc-hostname> -Port 9389
-```
+  If `TcpTestSucceeded` is `False`, work with your network team to open TCP 9389 between your workstation and the domain controllers.
 
-If `TcpTestSucceeded` is `False`, work with your network team to open TCP 9389 between your workstation and the domain controllers.
+  **Check AD readiness with the built-in helper:**
 
-**Check AD readiness with the built-in helper:**
+  ```powershell
+  Import-Module ActiveDirectoryUtils
+  $adSupport = Initialize-ActiveDirectorySupport
+  $adSupport | Format-List *
+  ```
 
-```powershell
-Import-Module ActiveDirectoryUtils
-$adSupport = Initialize-ActiveDirectorySupport
-$adSupport | Format-List *
-```
+  Review `IsAvailable`, `LimitedMode`, and `Message` to identify what is blocking connectivity.
 
-Review `IsAvailable`, `LimitedMode`, and `Message` to identify what is blocking connectivity.
+  **Specify a domain controller explicitly** to bypass automatic discovery when the default DC is unreachable:
 
-**Specify a domain controller explicitly** to bypass automatic discovery when the default DC is unreachable:
+  ```powershell
+  Get-UserInfo -Username "alice" -Server "dc2.contoso.com"
+  Get-UserComputer -UserName "alice" -DomainController "dc2.contoso.com"
+  ```
 
-```powershell
-Get-UserInfo -Username "alice" -Server "dc2.contoso.com"
-Get-UserComputer -UserName "alice" -DomainController "dc2.contoso.com"
-```
+  Common causes of ADWS failures:
 
-Common causes of ADWS failures:
-- Windows Firewall on the domain controller blocking port 9389.
-- The **Active Directory Web Services** Windows service is stopped. On the DC, run `Get-Service ADWS` and `Start-Service ADWS` if needed.
-- VPN not connected or split-tunnelling excluding the DC subnet.
-
+  - Windows Firewall on the domain controller blocking port 9389.
+  - The **Active Directory Web Services** Windows service is stopped. On the DC, run `Get-Service ADWS` and `Start-Service ADWS` if needed.
+  - VPN not connected or split-tunnelling excluding the DC subnet.
 </Accordion>
 
 <Accordion title="Get-UserComputer returns no results">
+  `Get-UserComputer` queries the **Security event log** on each domain controller for Event ID 4624 (successful logon). If it returns nothing, the most likely causes are that auditing is not enabled or that you lack access to read the Security log.
 
-`Get-UserComputer` queries the **Security event log** on each domain controller for Event ID 4624 (successful logon). If it returns nothing, the most likely causes are that auditing is not enabled or that you lack access to read the Security log.
+  **Verify Event ID 4624 is being generated on domain controllers:**
 
-**Verify Event ID 4624 is being generated on domain controllers:**
+  On a domain controller (or using `Invoke-Command`), check if logon success auditing is enabled:
 
-On a domain controller (or using `Invoke-Command`), check if logon success auditing is enabled:
+  ```powershell
+  auditpol /get /subcategory:"Logon"
+  ```
 
-```powershell
-auditpol /get /subcategory:"Logon"
-```
+  The output should show **Success** under **Audit Logon**. If auditing is disabled, enable it via Group Policy: `Computer Configuration → Windows Settings → Security Settings → Advanced Audit Policy Configuration → Logon/Logoff → Audit Logon → Success`
 
-The output should show **Success** under **Audit Logon**. If auditing is disabled, enable it via Group Policy:
-`Computer Configuration → Windows Settings → Security Settings → Advanced Audit Policy Configuration → Logon/Logoff → Audit Logon → Success`
+  **Check Security log access:**
 
-**Check Security log access:**
+  Reading the Security event log on a domain controller typically requires **Domain Admin** or membership in the **Event Log Readers** group on each DC. Test access explicitly:
 
-Reading the Security event log on a domain controller typically requires **Domain Admin** or membership in the **Event Log Readers** group on each DC. Test access explicitly:
+  ```powershell
+  Get-WinEvent -ComputerName <dc-hostname> -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 1
+  ```
 
-```powershell
-Get-WinEvent -ComputerName <dc-hostname> -FilterHashtable @{LogName='Security'; Id=4624} -MaxEvents 1
-```
+  If this fails with an access-denied error, pass credentials or run in an elevated session:
 
-If this fails with an access-denied error, pass credentials or run in an elevated session:
+  ```powershell
+  $creds = Get-Credential
+  Get-UserComputer -UserName "alice" -Credential $creds -DomainController "dc1.contoso.com"
+  ```
 
-```powershell
-$creds = Get-Credential
-Get-UserComputer -UserName "alice" -Credential $creds -DomainController "dc1.contoso.com"
-```
+  **Use `-ReturnAllEvents`** to get results from every queried DC rather than just the single most recent event:
 
-**Use `-ReturnAllEvents`** to get results from every queried DC rather than just the single most recent event:
+  ```powershell
+  Get-UserComputer -UserName "alice" -ReturnAllEvents
+  ```
 
-```powershell
-Get-UserComputer -UserName "alice" -ReturnAllEvents
-```
+  **Enable verbose output** to trace exactly which DCs are being queried and what errors occur:
 
-**Enable verbose output** to trace exactly which DCs are being queried and what errors occur:
-
-```powershell
-Get-UserComputer -UserName "alice" -Verbose
-```
-
+  ```powershell
+  Get-UserComputer -UserName "alice" -Verbose
+  ```
 </Accordion>
 
 <Accordion title="Remote operations fail — WS-Man or PowerShell Remoting errors">
+  Some operations in J-MaFf's scripts use **PowerShell Remoting (WS-Man)** to run commands on remote machines, which is distinct from the ADWS port 9389 used by `ActiveDirectoryUtils`. If you see `WS-Management` or `WSMan` errors, remoting is the cause.
 
-Some operations in MAFF scripts use **PowerShell Remoting (WS-Man)** to run commands on remote machines, which is distinct from the ADWS port 9389 used by `ActiveDirectoryUtils`. If you see `WS-Management` or `WSMan` errors, remoting is the cause.
+  **Enable PowerShell Remoting on the target machine** (run on the remote host, requires Admin):
 
-**Enable PowerShell Remoting on the target machine** (run on the remote host, requires Admin):
+  ```powershell
+  Enable-PSRemoting -Force
+  ```
 
-```powershell
-Enable-PSRemoting -Force
-```
+  **Test remoting from your workstation:**
 
-**Test remoting from your workstation:**
+  ```powershell
+  Test-WSMan -ComputerName <target-hostname>
+  Invoke-Command -ComputerName <target-hostname> -ScriptBlock { hostname }
+  ```
 
-```powershell
-Test-WSMan -ComputerName <target-hostname>
-Invoke-Command -ComputerName <target-hostname> -ScriptBlock { hostname }
-```
+  **Check WinRM service and firewall:**
 
-**Check WinRM service and firewall:**
+  ```powershell
+  # On the target machine:
+  Get-Service WinRM
+  Set-Service WinRM -StartupType Automatic
+  Start-Service WinRM
+  
+  # Verify firewall allows WinRM (port 5985 for HTTP, 5986 for HTTPS):
+  Get-NetFirewallRule -Name "WINRM-HTTP-In-TCP*" | Select-Object DisplayName, Enabled
+  ```
 
-```powershell
-# On the target machine:
-Get-Service WinRM
-Set-Service WinRM -StartupType Automatic
-Start-Service WinRM
+  **Pass credentials explicitly** if the remote machine is in a different domain or workgroup:
 
-# Verify firewall allows WinRM (port 5985 for HTTP, 5986 for HTTPS):
-Get-NetFirewallRule -Name "WINRM-HTTP-In-TCP*" | Select-Object DisplayName, Enabled
-```
+  ```powershell
+  $creds = Get-Credential "OTHERDOMAIN\adminuser"
+  Invoke-Command -ComputerName <target> -Credential $creds -ScriptBlock { Get-Process }
+  ```
 
-**Pass credentials explicitly** if the remote machine is in a different domain or workgroup:
-
-```powershell
-$creds = Get-Credential "OTHERDOMAIN\adminuser"
-Invoke-Command -ComputerName <target> -Credential $creds -ScriptBlock { Get-Process }
-```
-
-<Warning>
-PowerShell Remoting over HTTP (port 5985) transmits credentials using Kerberos or NTLM but the channel itself is not encrypted by default in workgroup environments. Use HTTPS (port 5986) or ensure Kerberos is in use on domain-joined machines.
-</Warning>
-
+  <Warning>
+    PowerShell Remoting over HTTP (port 5985) transmits credentials using Kerberos or NTLM but the channel itself is not encrypted by default in workgroup environments. Use HTTPS (port 5986) or ensure Kerberos is in use on domain-joined machines.
+  </Warning>
 </Accordion>
 
 <Accordion title="Credential prompt appears every time you run a script">
+  If you are repeatedly prompted for credentials when querying different domain controllers or running multiple AD functions, you can capture credentials once and pass the object throughout the session.
 
-If you are repeatedly prompted for credentials when querying different domain controllers or running multiple AD functions, you can capture credentials once and pass the object throughout the session.
+  **Capture credentials once and reuse:**
 
-**Capture credentials once and reuse:**
+  ```powershell
+  $creds = Get-Credential "DOMAIN\yourusername"
+  
+  # Pass to any ActiveDirectoryUtils function:
+  Get-UserInfo -Username "alice" -Credential $creds
+  Get-UserComputer -UserName "alice" -Credential $creds -DomainController "dc1.contoso.com"
+  "user1","user2","user3" | Get-UserInfo -Credential $creds
+  ```
 
-```powershell
-$creds = Get-Credential "DOMAIN\yourusername"
+  **Use 1Password environment variables** if your organisation uses 1Password and J-MaFf's credential integration:
 
-# Pass to any ActiveDirectoryUtils function:
-Get-UserInfo -Username "alice" -Credential $creds
-Get-UserComputer -UserName "alice" -Credential $creds -DomainController "dc1.contoso.com"
-"user1","user2","user3" | Get-UserInfo -Credential $creds
-```
+  Set the four `OP_KFI_*` / `OP_KGS_*` environment variables to your 1Password `op read`-compatible secret references. Scripts that support the credential cascade check `OP_KFI_USERNAME` and `OP_KFI_PASSWORD` first, then fall back to `OP_KGS_USERNAME` and `OP_KGS_PASSWORD`, before prompting interactively.
 
-**Use 1Password environment variables** if your organisation uses 1Password and the MAFF toolkit's credential integration:
+  ```powershell
+  # KFI credential set (checked first):
+  $env:OP_KFI_USERNAME = "op://YourVault/YourItem/username"
+  $env:OP_KFI_PASSWORD = "op://YourVault/YourItem/password"
+  
+  # KGS credential set (fallback):
+  $env:OP_KGS_USERNAME = "op://YourVault/YourItem/username"
+  $env:OP_KGS_PASSWORD = "op://YourVault/YourItem/password"
+  ```
 
-Set the four `OP_KFI_*` / `OP_KGS_*` environment variables to your 1Password `op read`-compatible secret references. Scripts that support the credential cascade check `OP_KFI_USERNAME` and `OP_KFI_PASSWORD` first, then fall back to `OP_KGS_USERNAME` and `OP_KGS_PASSWORD`, before prompting interactively.
-
-```powershell
-# KFI credential set (checked first):
-$env:OP_KFI_USERNAME = "op://YourVault/YourItem/username"
-$env:OP_KFI_PASSWORD = "op://YourVault/YourItem/password"
-
-# KGS credential set (fallback):
-$env:OP_KGS_USERNAME = "op://YourVault/YourItem/username"
-$env:OP_KGS_PASSWORD = "op://YourVault/YourItem/password"
-```
-
-**Avoid persisting credentials to disk.** Do not store `PSCredential` objects via `Export-Clixml` on shared machines. Use `Get-Credential` at the start of each session or the 1Password integration for non-interactive scenarios.
-
+  **Avoid persisting credentials to disk.** Do not store `PSCredential` objects via `Export-Clixml` on shared machines. Use `Get-Credential` at the start of each session or the 1Password integration for non-interactive scenarios.
 </Accordion>

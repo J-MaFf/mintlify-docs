@@ -1,10 +1,10 @@
 ---
-title: "Install the MAFF Git Configuration on Any Platform"
+title: "Install J-MaFf's Git Configuration on Any Platform"
 sidebarTitle: "Installation"
 description: "Step-by-step installation for macOS, Linux, and Windows: prerequisites, what each installer does, and how to customize per-machine settings."
 ---
 
-The MAFF gitconfig installer is a single command per platform. It clones the repository once, runs the setup script, and from that point forward the system maintains itself automatically at each login. The steps below walk you through the prerequisites and the exact command to run on your platform.
+J-MaFf's gitconfig installer is a single command per platform. It clones the repository once, runs the setup script, and from that point forward the system maintains itself automatically at each login. The steps below walk you through the prerequisites and the exact command to run on your platform.
 
 ## Prerequisites
 
@@ -12,12 +12,12 @@ Before you run the installer, make sure the following are present on your machin
 
 - **Git** — used to clone the repository and by the aliases themselves.
 - **Python 3** — required by the alias helper script. Install from [python.org](https://www.python.org/downloads/) or via your system package manager.
-- **pip** — comes with Python 3.4+. Used to install the `rich` package (required) and `textual` (optional).
+- **pip** — comes with Python 3.4\+. Used to install the `rich` package (required) and `textual` (optional).
 - **`rich` Python package** — required for alias tables. The installer installs this automatically; see below if it fails.
 - **`textual` Python package** — optional. Powers the interactive `git alias` TUI browser. Without it, `git alias` falls back to a static grouped table.
 
 <Note>
-On Windows, the installer requires **Administrator privileges** to create symlinks and register the scheduled task. The script detects non-elevated sessions and relaunches itself elevated automatically — you will see a UAC prompt.
+  On Windows, the installer requires **Administrator privileges** to create symlinks and register the scheduled task. The script detects non-elevated sessions and relaunches itself elevated automatically — you will see a UAC prompt.
 </Note>
 
 ## Clone the Repository
@@ -38,6 +38,7 @@ cd ~/Documents/Scripts/gitconfig
     ```
 
     The macOS installer:
+
     - Generates `~/.gitconfig` from the template with the correct repository path substituted.
     - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py`.
     - Generates `~/.gitconfig.local` with machine-specific defaults (SSH signing key, `safe.directory`, etc.).
@@ -46,6 +47,7 @@ cd ~/Documents/Scripts/gitconfig
     - Adds the `Ctrl-G` alias browser keybinding to your `~/.bashrc` or `~/.zshrc`.
 
     **Optional — SSH commit signing with 1Password:**
+
     ```bash
     brew install 1password-cli
     bash scripts/mac\ version/install.sh --force
@@ -66,6 +68,7 @@ cd ~/Documents/Scripts/gitconfig
     ```
 
     The Windows installer:
+
     - Generates `~/.gitconfig` from the template.
     - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py` (requires Admin).
     - Generates `~/.gitconfig.local`.
@@ -74,6 +77,7 @@ cd ~/Documents/Scripts/gitconfig
     - Adds the `Ctrl-G` alias browser keybinding to your PowerShell profile (`$PROFILE.CurrentUserAllHosts`).
 
     **Skip the scheduled task:**
+
     ```powershell
     & ".\scripts\windows version\install.ps1" -Force -NoTask
     ```
@@ -85,7 +89,7 @@ cd ~/Documents/Scripts/gitconfig
 The Windows installer exposes several flags for granular control:
 
 | Flag | Effect |
-|------|--------|
+| --- | --- |
 | `-Force` | Overwrite existing files without prompting. Use this for fresh installs and re-installs. |
 | `-NoTask` | Skip Task Scheduler registration. Use this on machines where you don't want auto-sync. |
 | `-Help` | Print the full usage summary and exit. |
@@ -108,7 +112,7 @@ You can also run the individual sub-scripts directly:
 After a successful run you will have:
 
 | File | Description |
-|------|-------------|
+| --- | --- |
 | `~/.gitconfig` | Generated from the template. **Do not edit directly** — changes will be overwritten on the next `git selfupdate`. |
 | `~/.gitconfig.local` | Machine-specific overrides. Included by `~/.gitconfig` via `[include]`. **Safe to edit freely.** |
 | `~/.gitignore_global` | Global ignore patterns for IDEs, OS files, and build artifacts. |
@@ -127,7 +131,7 @@ Put any setting that should only apply to this machine in that file — a differ
 ## Auto-Update Job
 
 <Note>
-The auto-update job runs at every login. It performs `git pull` on the gitconfig repository, and if `.gitconfig.template` changed in that pull, regenerates `~/.gitconfig` automatically. It also prunes merged branches in the repository to keep things tidy. Run the same operation on demand at any time with `git selfupdate`.
+  The auto-update job runs at every login. It performs `git pull` on the gitconfig repository, and if `.gitconfig.template` changed in that pull, regenerates `~/.gitconfig` automatically. It also prunes merged branches in the repository to keep things tidy. Run the same operation on demand at any time with `git selfupdate`.
 </Note>
 
 Your existing `~/.gitconfig` is backed up to `~/.gitconfig.bak` before each regeneration, and `~/.gitconfig.local` is never modified.
