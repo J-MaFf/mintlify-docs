@@ -151,18 +151,28 @@ Use these aliases to manage the configuration itself.
 | --- | --- |
 | `git localconfig` | Open `~/.gitconfig.local` in your editor for machine-specific settings. |
 | `git selfupdate` | Pull the gitconfig repository and regenerate `~/.gitconfig` from the template. |
-| `git skill-sync` | Pull the latest commits from the `~/.claude/skills` repository using `--ff-only`. |
-| `git skill-publish` | Publish a new or edited Claude skill via a pull request (branches off `main`, prompts for a commit message, and opens a PR with squash auto-merge). |
+| `git skill` | Dispatcher for managing `~/.claude/skills`. Running it with no argument (or `git skill help`) prints the usage banner listing every subcommand; unknown subcommands exit with status 1. |
+| `git skill list` | Print a rich table of installed Claude skills with each skill's name, one-line description from its `SKILL.md`, and last-updated date. |
+| `git skill sync` | Sync `~/.claude/skills` on demand: show status, run `git pull --ff-only`, then show status again so you see unpublished local work before and after. Replaces the removed `git skill-sync`. |
+| `git skill status` | Show this machine's `~/.claude/skills` sync state: the last background sync timestamp plus any unpublished local changes. Read-only. Replaces the removed `git skill-sync-status`. |
+| `git skill publish` | Publish a new or edited Claude skill via a pull request: branch off `main`, prompt for a commit message, and open a PR with squash auto-merge. Replaces the removed `git skill-publish`. |
 | `git alias` | Open the interactive alias browser (or static table when piped). |
 | `git alias --plain` | Print the static grouped table — pipe-friendly. |
+
+<Note>
+  The dashed `git skill-sync`, `git skill-sync-status`, and `git skill-publish` aliases no longer exist — this was a breaking change. Use the `git skill <subcommand>` forms above instead.
+</Note>
 
 **Examples:**
 
 ```bash
 git localconfig             # Add a work email or local safe.directory entry
 git selfupdate              # Apply the latest template changes now
-git skill-sync              # Pull the latest skills without publishing
-git skill-publish           # Open a PR for a new or edited skill
+git skill                   # Print the usage banner listing every subcommand
+git skill list              # See which Claude skills are installed
+git skill sync              # Pull the latest skills without publishing
+git skill status            # Check last background sync and unpublished changes
+git skill publish           # Open a PR for a new or edited skill
 git alias --plain | grep pr # Find all PR-related aliases
 ```
 
