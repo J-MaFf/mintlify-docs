@@ -37,11 +37,11 @@ python main.py --api-key YOUR_KEY --output-format HTML --date-filter ThisWeek
 </ParamField>
 
 <ParamField path="--workspace" type="string">
-  The name of the ClickUp workspace to target. Defaults to the workspace configured at install time.
+  The name of the ClickUp workspace to target. Falls back to the `CLICKUP_WORKSPACE_NAME` environment variable; if both are unset you are prompted at runtime. See [Authentication](/clickup/authentication#workspace-selection).
 </ParamField>
 
 <ParamField path="--space" type="string">
-  The name of the ClickUp space within the workspace to extract tasks from. Defaults to the space configured at install time.
+  The name of the ClickUp space within the workspace to extract tasks from. Falls back to the `CLICKUP_SPACE_NAME` environment variable; if both are unset you are prompted at runtime.
 </ParamField>
 
 <ParamField path="--list" type="string">
@@ -134,23 +134,46 @@ python main.py --date-filter LastWeek --include-completed
 
 `kfj_task_extractor.py` is a standalone script that pulls all open tasks from a configured ClickUp list and writes them to a weekly Google Sheet. It creates a new worksheet tab named with the current date and renames the workbook title to match. Re‑running on the same day is idempotent — the existing tab's contents are replaced instead of duplicated.
 
+Use this script when you want an automated weekly snapshot of a single ClickUp list in a Google Sheet — for example, on a cron or scheduled task. For ad‑hoc Markdown/HTML/CSV exports, use `main.py` instead.
+
 ### One‑time setup
 
 Before your first real run:
 
 1. Enable the **Google Sheets API** in your GCP project for the service account.
 2. Share the target spreadsheet with the service account's `client_email` as **Editor**.
-3. Make both the ClickUp API key and the Google service account JSON available via environment variable or 1Password.
+3. Copy `.env.kfj.example` to `.env.kfj` and fill in the variables below (at minimum the list ID and sheet ID, plus a credential source). The script also accepts the secrets directly through environment variables or 1Password.
 4. Install the `gspread` dependency: `pip install -r requirements.txt`.
+
+### Configuration
+
+The script is configured entirely through environment variables (no hardcoded defaults). The recommended layout is committed in `.env.kfj.example`:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `KFJ_CLICKUP_LIST_ID` | Yes (or `--list-id`) | ClickUp list ID to extract open tasks from. Find it in the list URL. |
+| `KFJ_GOOGLE_SHEET_ID` | Yes (or `--sheet-id`, unless `--dry-run`) | Google Sheets workbook ID. The long ID in `https://docs.google.com/spreadsheets/d/<ID>/edit`. |
+| `KFJ_TAB_PREFIX` | No | Prefix for the dated worksheet tab. Defaults to `KFI Jefferson current tasks`. |
+| `KFJ_FALLBACK_BRANCH` | No | Branch label used when a task has no `Branch` custom-field value. |
+| `CLICKUP_API_KEY` | One of these | ClickUp API key, supplied directly. |
+| `GOOGLE_SHEETS_CREDENTIALS_JSON` | One of these | Google service-account JSON as a single-line string. Resolved in memory and never written to disk. |
+| `KFJ_CLICKUP_SECRET_REFERENCE` | Optional | `op://<vault>/<item>/credential` URI for the ClickUp key. Skipped when empty. |
+| `KFJ_GOOGLE_SA_SECRET_REFERENCE` | Optional | `op://<vault>/<item>/credential` URI for the Google service-account JSON. Skipped when empty. |
+| `KFJ_OP_ACCOUNT_NAME` | Optional | 1Password account *display name* (as shown in the desktop app) used by the SDK desktop auth. |
+| `KFJ_OP_ACCOUNT_URL` | Optional | 1Password account URL used by the `op` CLI. Defaults to `my.1password.com`. |
+
+The script validates that a list ID is present, and a sheet ID is present unless you pass `--dry-run`. Missing values trigger a clear error pointing at `.env.kfj.example`.
+
+When a `*_SECRET_REFERENCE` is empty the 1Password chain is skipped entirely and the script relies on the directly-set environment variable (`CLICKUP_API_KEY` / `GOOGLE_SHEETS_CREDENTIALS_JSON`) instead.
 
 ### Sheets sync CLI options
 
 <ParamField path="--list-id" type="string">
-  The ClickUp list ID to extract from. Defaults to the list ID configured at install time.
+  The ClickUp list ID to extract from. Overrides `KFJ_CLICKUP_LIST_ID`. Required if neither is set.
 </ParamField>
 
 <ParamField path="--sheet-id" type="string">
-  The Google Sheets workbook ID to write to. Defaults to the spreadsheet configured at install time.
+  The Google Sheets workbook ID to write to. Overrides `KFJ_GOOGLE_SHEET_ID`. Required unless `--dry-run` is passed.
 </ParamField>
 
 <ParamField path="--dry-run" type="boolean">
