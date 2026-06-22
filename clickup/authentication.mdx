@@ -6,6 +6,10 @@ description: "Supply your ClickUp API key via CLI flag, environment variable, or
 
 The extractor resolves your ClickUp API key automatically by working through a priority chain — it checks each source in turn and stops as soon as it finds a valid key. If every automated source fails, it falls back to a secure interactive prompt so you are never locked out.
 
+<Tip>
+  The fastest way to configure every variable on this page is to copy `.env.example` to `.env` and fill in your own values. The repo ships `.env.example` (for `main.py`) and `.env.kfj.example` (for the weekly Google Sheets sync) as the canonical reference for every supported variable. Both files are gitignored once copied.
+</Tip>
+
 ## Get your ClickUp API key
 
 <Steps>
@@ -86,13 +90,15 @@ The extractor checks these sources in the order shown below.
 
     **1Password CLI**
 
-    If neither of the above is configured, the extractor calls `op read` directly. Make sure the `op` binary is in your `PATH` and your account is signed in:
+    If neither of the above is configured, the extractor calls `op read` directly. Make sure the `op` binary is in your `PATH` and your account is signed in. Point the extractor at your vault item by setting `CLICKUP_API_SECRET_REFERENCE` (and, for AI summaries, `GEMINI_API_SECRET_REFERENCE`) to the `op://` URI of the credential:
 
     ```bash
-    # The extractor resolves a configured vault reference automatically.
-    # Example format: op://VaultName/ItemName/credential
+    export CLICKUP_API_SECRET_REFERENCE="op://<vault>/<item>/credential"
+    export GEMINI_API_SECRET_REFERENCE="op://<vault>/<item>/credential"
     python main.py
     ```
+
+    When either reference is empty, the extractor skips the 1Password lookup for that key and falls back to `CLICKUP_API_KEY` / `--api-key` (or the equivalent Gemini source).
 
     <Note>
       If you set `OP_ENVIRONMENT_ID`, the extractor reads from that Environment and does **not** fall through to vault‑based secret references. Remove `OP_ENVIRONMENT_ID` if you want the vault path instead.
@@ -108,8 +114,27 @@ The extractor checks these sources in the order shown below.
 | 2 | `CLICKUP_API_KEY` environment variable | Variable exported in shell |
 | 3 | 1Password Environment (SDK then CLI) | `OP_ENVIRONMENT_ID` set |
 | 4 | 1Password SDK (service account) | `OP_SERVICE_ACCOUNT_TOKEN` set |
-| 5 | 1Password CLI (`op read`) | `op` installed and signed in |
+| 5 | 1Password CLI (`op read`) | `op` installed and signed in, `CLICKUP_API_SECRET_REFERENCE` set |
 | 6 | Interactive prompt | Fallback — key entered at runtime |
+
+## Workspace selection
+
+The extractor reads workspace and space selection from environment variables or CLI flags, so the same code works against any ClickUp account.
+
+| Variable | Equivalent flag | Purpose |
+|---|---|---|
+| `CLICKUP_WORKSPACE_NAME` | `--workspace` | Workspace (team) name to extract from. |
+| `CLICKUP_SPACE_NAME` | `--space` | Space within the workspace to pull tasks from. |
+| `CLICKUP_TEAM_ID` | — | Numeric team/workspace ID. Used as a fallback when the workspace name cannot be resolved via the API; otherwise the extractor prompts. |
+| `CLICKUP_AI_SUMMARY_FIELD_ID` | — | Optional override for the ClickUp custom-field ID used as the "Summary" field. Leave unset to use the built-in default. |
+
+CLI flags take precedence over environment variables. Any value left unset falls back to an interactive prompt at runtime.
+
+```bash
+export CLICKUP_WORKSPACE_NAME="Acme"
+export CLICKUP_SPACE_NAME="Engineering"
+python main.py
+```
 
 ## Gemini API key (for AI summaries)
 
@@ -141,7 +166,12 @@ When you enable AI summaries with `--ai-summary`, the extractor needs a Google G
     python main.py --ai-summary
     ```
 
-    If the Environment method is not configured, the extractor falls back to the configured vault secret reference via the SDK or CLI.
+    If the Environment method is not configured, the extractor falls back to the vault secret reference defined in `GEMINI_API_SECRET_REFERENCE` (an `op://<vault>/<item>/credential` URI). Leave that variable empty to skip the 1Password lookup entirely and rely on `--gemini-api-key` / `GEMINI_API_KEY`.
+
+    ```bash
+    export GEMINI_API_SECRET_REFERENCE="op://<vault>/<item>/credential"
+    python main.py --ai-summary
+    ```
   </Tab>
 </Tabs>
 
