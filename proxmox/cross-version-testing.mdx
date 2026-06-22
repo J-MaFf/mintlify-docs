@@ -1,0 +1,175 @@
+---
+title: "Cross-Version Testing Across Windows Server Releases"
+sidebarTitle: "Cross-Version Testing"
+description: "Clone golden templates for each Windows Server version and run a test matrix across all of them in a single pass, with automatic cleanup when the run completes."
+---
+
+Cross-version testing runs your scripts against every Windows Server version in the lab simultaneously, starting with the oldest. A test matrix clone is a full linked clone of the golden template — it starts up in seconds, runs the suite, and is deleted when done. The templates themselves are never modified.
+
+## How it works
+
+```
+for each version in [2016, 2019, 2022]:
+    clone template  →  boot clone  →  run tests  →  collect results  →  delete clone
+```
+
+All three versions run in parallel by default. Results are written to a per-version results directory and summarised in a single console report at the end.
+
+## Prerequisites
+
+- Golden templates built and registered in Proxmox (see [Building Templates](/proxmox/building-templates)).
+- A Proxmox API token with `VM.Clone`, `VM.Config.Network`, `VM.PowerMgmt`, `VM.Snapshot`, `Datastore.AllocateSpace`, and `VM.Audit` permissions.
+- WinRM reachable from the machine running the test scripts (same network or a routed path to the lab VLAN).
+- PowerShell 7 on the orchestrating machine.
+
+## Configuration
+
+The test matrix is driven by a `config/matrix.json` file:
+
+```json
+{
+  "proxmox": {
+    "apiHost": "https://<proxmox-host>:8006",
+    "node": "<your-node>",
+    "tokenEnvVar": "PROXMOX_TOKEN"
+  },
+  "cloneStorage": "<storage>",
+  "clonePrefix": "ci-run",
+  "cleanupOnSuccess": true,
+  "cleanupOnFailure": false,
+  "versions": [
+    {
+      "name": "Windows Server 2016",
+      "templateVmid": 900,
+      "cloneVmid": 950
+    },
+    {
+      "name": "Windows Server 2019",
+      "templateVmid": 901,
+      "cloneVmid": 951
+    },
+    {
+      "name": "Windows Server 2022",
+      "templateVmid": 902,
+      "cloneVmid": 952
+    }
+  ],
+  "winrm": {
+    "username": "Administrator",
+    "credentialEnvVar": "WIN_TEST_CRED",
+    "useSSL": false
+  }
+}
+```
+
+Key fields:
+
+| Field | Description |
+|---|---|
+| `proxmox.apiHost` | Base URL of your Proxmox API including port. |
+| `proxmox.node` | Node name where templates and clones live. |
+| `proxmox.tokenEnvVar` | Name of the env var holding your API token secret. |
+| `cloneStorage` | Proxmox storage target for clone disks. |
+| `clonePrefix` | Prefix prepended to clone names (`ci-run-ws2019`, etc.). |
+| `cleanupOnSuccess` | Delete clones automatically after a passing run. |
+| `cleanupOnFailure` | Keep clones alive after a failing run so you can inspect them. Set to `false` during development. |
+| `versions[].templateVmid` | VMID of the sealed golden template. |
+| `versions[].cloneVmid` | VMID to assign to the clone. Must not conflict with existing VMs. |
+| `winrm.credentialEnvVar` | Name of the env var holding the Administrator password. |
+
+## Set environment variables
+
+```powershell
+$env:PROXMOX_TOKEN  = '<user>@pam!<tokenid>=<secret>'
+$env:WIN_TEST_CRED  = $env:ADMIN_PASSWORD   # or set directly
+```
+
+<Warning>
+  Never hard-code credentials in `matrix.json` or any script. All secrets travel through environment variables. The `@@ADMIN_PASSWORD@@` placeholder in the repo's answer files is a build-time substitute — not a runtime value.
+</Warning>
+
+## Run the matrix
+
+```powershell
+./tests/Invoke-Matrix.ps1
+```
+
+The script:
+
+1. **Clones** each template to the configured clone VMID with a `ci-run-<version>` name.
+2. **Starts** all clones in parallel and waits for WinRM to respond on each.
+3. **Runs** the test suite on every clone concurrently via WinRM sessions.
+4. **Collects** Pester XML and any failure screenshots to `results/<version>/`.
+5. **Deletes** clones according to the `cleanupOnSuccess` / `cleanupOnFailure` flags.
+6. **Prints** a summary table and exits `0` if all versions pass, `1` if any fail.
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `-Versions 2016,2019` | Run only the specified versions (comma-separated). |
+| `-TestPath tests/MyScript.Tests.ps1` | Run a single test file instead of the full suite. |
+| `-NoParallel` | Run versions sequentially (useful for debugging WinRM timeouts). |
+| `-KeepClones` | Override both `cleanupOn*` flags and keep clones regardless of result. |
+
+```powershell
+# Run only Server 2016 and 2019
+./tests/Invoke-Matrix.ps1 -Versions 2016,2019
+
+# Run a single test file across all versions
+./tests/Invoke-Matrix.ps1 -TestPath tests/ActiveDirectory.Tests.ps1
+
+# Keep clones after the run for manual inspection
+./tests/Invoke-Matrix.ps1 -KeepClones
+```
+
+## Reading the results
+
+The script prints a summary table when all versions complete:
+
+```
+Version                  Tests  Passed  Failed  Skipped  Duration
+-----------------------  -----  ------  ------  -------  --------
+Windows Server 2016         42      41       1        0    3m 12s
+Windows Server 2019         42      42       0        0    2m 58s
+Windows Server 2022         42      42       0        0    2m 44s
+```
+
+Per-version Pester XML files land in `results/<version>/Test-Results.xml`. Failure screenshots (if any) are in `results/<version>/screenshots/`.
+
+To open the Pester XML in your terminal:
+
+```powershell
+[xml]$results = Get-Content 'results/Windows Server 2016/Test-Results.xml'
+$results.'test-results'.'test-suite' |
+    Where-Object { $_.result -ne 'Success' } |
+    Select-Object name, result, message
+```
+
+## Cleanup
+
+If you ran with `-KeepClones` or `cleanupOnFailure = false`, delete leftover clones manually:
+
+```powershell
+./tests/Invoke-Matrix.ps1 -CleanupOnly
+```
+
+Or delete a specific clone via the API:
+
+```powershell
+$tokenHeader = @{ Authorization = "PVEAPIToken=$env:PROXMOX_TOKEN" }
+
+# Stop the clone if running
+Invoke-RestMethod -Method Post `
+    -Uri "$proxmoxHost/api2/json/nodes/$node/qemu/950/status/stop" `
+    -Headers $tokenHeader
+
+# Wait for it to stop, then delete
+Invoke-RestMethod -Method Delete `
+    -Uri "$proxmoxHost/api2/json/nodes/$node/qemu/950" `
+    -Headers $tokenHeader -Body @{ purge = 1; 'destroy-unreferenced-disks' = 1 }
+```
+
+<Note>
+  Always pass `purge=1` and `destroy-unreferenced-disks=1` when deleting a clone. Without these flags, linked-clone disks may remain on storage and accumulate over time.
+</Note>

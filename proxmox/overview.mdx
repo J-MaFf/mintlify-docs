@@ -1,0 +1,59 @@
+---
+title: "Proxmox Windows Server Lab: Multi-Version Testing Environment"
+sidebarTitle: "Overview"
+description: "A Proxmox-hosted lab for building golden templates and running matrix tests across multiple Windows Server versions, with a focus on oldest-version compatibility."
+---
+
+The Proxmox Windows Server Lab is a self-hosted environment for validating that scripts, configurations, and automation tools work correctly across the full range of Windows Server versions the organisation supports — from the oldest still-in-service release up through the latest. Rather than assuming the newest APIs and features are available everywhere, the lab makes oldest-version testing the default, so regressions against legacy deployments are caught before they reach production.
+
+## What the lab is
+
+The lab consists of a Proxmox VE host running a set of Windows Server virtual machines, one per major version under test. Each machine is derived from a sealed golden template that has been fully patched, pre-configured for remote management, and snapshotted at a known-good state. Tests clone a template, run against the fresh clone, and the clone is discarded — the golden template is never modified during a test run.
+
+The two core workflows are:
+
+- **[Building templates](/proxmox/building-templates)** — creating, patching, and sealing a reproducible Windows Server VM that can be cloned quickly and consistently.
+- **[Cross-version testing](/proxmox/cross-version-testing)** — cloning the right template for each Server version and running a test matrix across all of them in a single pass.
+
+## Why oldest-version testing
+
+Scripts written on Windows Server 2022 often use PowerShell features, WMI classes, or OS behaviours that do not exist on Server 2016 or 2019. By running tests against the oldest version first — and requiring them to pass there — the lab enforces a compatibility floor. Any version-specific feature use must be gated explicitly rather than discovered as a production incident.
+
+Testing oldest-first also surfaces assumptions that are invisible on modern hosts: default TLS versions, available cipher suites, .NET Framework editions pre-installed, and which PowerShell edition ships in-box.
+
+## Hardware and naming conventions
+
+The lab runs on a single Proxmox node. All names below are illustrative — substitute your own node name, VMID range, and hostname scheme.
+
+| Item | Convention | Example |
+|---|---|---|
+| Proxmox node | Short hostname, lowercase | `pve-lab` |
+| VM naming | `ws<version>-template` for templates, `ws<version>-<purpose>` for clones | `ws2016-template`, `ws2022-ci` |
+| VMID range | Templates occupy a reserved block; clones are allocated dynamically | Templates: 900–919 |
+| Network | All VMs on a dedicated lab VLAN; no external connectivity required | `vmbr1`, VLAN 10 |
+| Administrator account | Uses the `@@ADMIN_PASSWORD@@` placeholder in unattended-setup answer files | — |
+
+<Note>
+  Answer files (`autounattend.xml`) in the repo use `@@ADMIN_PASSWORD@@` where the local Administrator password would appear. A pre-run script substitutes the real value from an environment variable before the ISO is attached to the VM. Never commit a real password to the answer file.
+</Note>
+
+## Prerequisites
+
+Before using the lab you need:
+
+- A Proxmox VE host (7.x or later) reachable from your workstation.
+- A Proxmox API token with `VM.Allocate`, `VM.Clone`, `VM.Config.CDROM`, `VM.Config.Disk`, `VM.PowerMgmt`, `VM.Snapshot`, and `VM.Snapshot.Rollback` permissions on the target node and storage.
+- Windows Server ISO files for each version you want to template (sourced from your Volume Licensing or MSDN subscription — not included in the repo).
+- PowerShell 7 on the machine running the lab scripts, with the `ProxmoxVE` community module or direct REST calls via `Invoke-RestMethod`.
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Building Templates" icon="layer-group" href="/proxmox/building-templates">
+    Create, patch, and seal a golden Windows Server template ready to clone.
+  </Card>
+
+  <Card title="Cross-Version Testing" icon="grid" href="/proxmox/cross-version-testing">
+    Clone templates and run your test matrix across all supported Server versions.
+  </Card>
+</CardGroup>

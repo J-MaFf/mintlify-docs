@@ -1,0 +1,166 @@
+---
+title: "Building a Golden Windows Server Template in Proxmox"
+sidebarTitle: "Building Templates"
+description: "Step-by-step guide to creating, patching, and sealing a reproducible Windows Server VM template that can be cloned cleanly for every test run."
+---
+
+A golden template is a fully-installed, fully-patched, and pre-configured Windows Server VM that has been converted to a Proxmox template. Cloning from a template is faster and more reliable than re-installing from ISO each time — and because the template is never booted after sealing, it stays in a known-good state indefinitely.
+
+Build one template per Windows Server version you want to test against. The process is the same for every version; only the ISO and the product key (or KMS activation) differ.
+
+## Overview of the process
+
+1. Create a new VM in Proxmox and attach the Windows Server ISO.
+2. Install Windows Server, applying your organisation's unattended answer file.
+3. Boot and run Windows Update until the machine is fully patched.
+4. Install prerequisites (PowerShell 7, WinRM, the VirtIO guest tools).
+5. Run a final update check, then sysprep to seal the image.
+6. Shut the VM down and convert it to a Proxmox template.
+
+## Step 1 — Create the VM
+
+Create the VM via the Proxmox API or the web UI. The values below are illustrative — adjust storage, CPU, and RAM to suit your host.
+
+```powershell
+# Example using Invoke-RestMethod against the Proxmox REST API
+$proxmoxHost  = 'https://<proxmox-host>:8006'
+$node         = '<your-node>'
+$tokenHeader  = @{ Authorization = "PVEAPIToken=<user>@pam!<tokenid>=<secret>" }
+
+$body = @{
+    vmid    = 900
+    name    = 'ws2019-template'
+    memory  = 4096
+    cores   = 2
+    sockets = 1
+    ostype  = 'win10'             # Proxmox uses 'win10' for Server 2016/2019/2022
+    ide2    = '<storage>:iso/WS2019.iso,media=cdrom'
+    virtio0 = '<storage>:32,format=qcow2'
+    net0    = 'virtio,bridge=vmbr1,tag=10'
+    boot    = 'order=ide2;virtio0'
+}
+
+Invoke-RestMethod -Method Post -Uri "$proxmoxHost/api2/json/nodes/$node/qemu" `
+    -Headers $tokenHeader -Body $body
+```
+
+<Note>
+  Attach the VirtIO ISO as a second CD-ROM drive (`ide3`) if you plan to use VirtIO disk and network drivers during installation. The VirtIO ISO is available from the Proxmox project's official downloads page.
+</Note>
+
+## Step 2 — Install Windows Server
+
+### Using an unattended answer file
+
+The repo ships an `autounattend.xml` answer file for each supported Server version. Before attaching the answer-file ISO, substitute the Administrator password placeholder:
+
+```powershell
+$answerFilePath = 'autounattend/ws2019/autounattend.xml'
+$adminPassword  = $env:ADMIN_PASSWORD      # never hard-code; read from env
+
+(Get-Content $answerFilePath) -replace '@@ADMIN_PASSWORD@@', $adminPassword |
+    Set-Content autounattend/ws2019/autounattend-patched.xml
+```
+
+Package the patched file into an ISO and attach it to the VM. Windows Setup reads `autounattend.xml` automatically from any attached optical drive.
+
+<Warning>
+  Always discard `autounattend-patched.xml` after building the template and never commit it. The source `autounattend.xml` uses `@@ADMIN_PASSWORD@@` as a deliberate placeholder — keep it that way.
+</Warning>
+
+### Manual installation
+
+If you prefer an interactive install, boot the VM from the ISO in the Proxmox VNC console and complete the graphical setup wizard. Use a strong local Administrator password and note it — you will need it when configuring WinRM.
+
+## Step 3 — Apply Windows updates
+
+Once Windows is installed, open PowerShell as Administrator and run Windows Update until no further updates are available. The `PSWindowsUpdate` module from the PowerShell Gallery makes this scriptable:
+
+```powershell
+# On the guest — install PSWindowsUpdate if not already present
+Install-Module PSWindowsUpdate -Scope CurrentUser -Force
+
+# Apply all updates; reboot automatically if required
+Get-WindowsUpdate -AcceptAll -Install -AutoReboot
+```
+
+Repeat until the command reports zero updates remaining. This may require two or three reboot cycles.
+
+## Step 4 — Install prerequisites
+
+Install everything that every test run will need. At minimum:
+
+```powershell
+# PowerShell 7 (winget is available on Server 2019+ after update; use the MSI on older versions)
+winget install --id Microsoft.PowerShell --source winget --silent
+
+# Enable WinRM for remote management
+Enable-PSRemoting -Force
+Set-Item WSMan:\localhost\Service\Auth\Basic -Value $true
+Set-Item WSMan:\localhost\Service\AllowUnencrypted -Value $true   # lab-only; use HTTPS in prod
+
+# Allow inbound WinRM through the firewall (already opened by Enable-PSRemoting, but explicit)
+New-NetFirewallRule -DisplayName 'WinRM HTTP' -Direction Inbound `
+    -Protocol TCP -LocalPort 5985 -Action Allow -Profile Any
+```
+
+Install any additional software your scripts under test depend on — e.g., the RSAT tools, specific .NET versions, or ODBC drivers. Everything installed here will be present in every clone.
+
+<Note>
+  Do not install anything test-run-specific at this stage. The template should contain only stable prerequisites. Test-specific setup belongs in the test's own setup script.
+</Note>
+
+## Step 5 — Seal the template with Sysprep
+
+Sysprep generalises the installation — strips the SID, clears event logs, and removes machine-specific identifiers — so every clone gets a unique identity on first boot.
+
+```powershell
+# On the guest
+C:\Windows\System32\Sysprep\sysprep.exe /generalize /oobe /shutdown
+```
+
+The VM will shut itself down when sysprep completes. Wait for it to reach the `stopped` state before proceeding.
+
+<Warning>
+  After sysprep the VM cannot be booted as-is — the next boot triggers OOBE (out-of-box experience) and re-specialises the image. Convert to a template immediately; do not power it on again.
+</Warning>
+
+## Step 6 — Convert to a Proxmox template
+
+With the VM stopped, convert it to a template via the API:
+
+```powershell
+$vmid = 900
+
+Invoke-RestMethod -Method Post `
+    -Uri "$proxmoxHost/api2/json/nodes/$node/qemu/$vmid/template" `
+    -Headers $tokenHeader
+```
+
+Or, in the Proxmox web UI: right-click the VM → **Convert to Template**.
+
+The VM is now a template. It appears in the resource tree with a different icon and can no longer be started directly — it can only be cloned.
+
+## Verify the template
+
+After conversion, confirm the template is visible and note its VMID for use in the cross-version testing scripts:
+
+```powershell
+$templates = Invoke-RestMethod -Uri "$proxmoxHost/api2/json/nodes/$node/qemu" `
+    -Headers $tokenHeader
+
+$templates.data | Where-Object { $_.template -eq 1 } |
+    Select-Object vmid, name, status
+```
+
+Expected output (example):
+
+```
+vmid name             status
+---- ----             ------
+ 900 ws2019-template  stopped
+```
+
+## What's next
+
+With a template in place, you can move on to [cross-version testing](/proxmox/cross-version-testing) — cloning the template, running your test matrix, and discarding the clone when done.
