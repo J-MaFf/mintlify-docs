@@ -72,6 +72,14 @@
             ]
           },
           {
+            "group": "Proxmox Windows Server Lab",
+            "pages": [
+              "proxmox/overview",
+              "proxmox/building-templates",
+              "proxmox/cross-version-testing"
+            ]
+          },
+          {
             "group": "Troubleshooting",
             "pages": [
               "troubleshooting/winget-issues",
