@@ -1,0 +1,91 @@
+---
+title: "Clone Templates and Test Scripts Across Server Versions"
+sidebarTitle: "Cross-Version Testing"
+description: "Clone sealed Windows Server templates into ready VMs and matrix-test one PowerShell script across multiple versions, proving it works on the oldest production release."
+---
+
+With sealed templates in place, the daily loop is to **clone** and **test**: spin up a fresh box to work in, or run one script across clones of several Windows Server versions at once and compare the results. This is the payoff of the lab — proving a script behaves on the *oldest* production version, not just the newest.
+
+<Note>
+  The commands here run **on the Proxmox host** over SSH. Throwaway clones are created and destroyed automatically by the matrix-test script; the RDP box from `new-clone.sh` sticks around until you remove it.
+</Note>
+
+## Clone a ready box
+
+`new-clone.sh` clones a sealed template into a running, RDP-able VM. By default it makes a **linked clone**, which is instant and thin because it shares the template's base disk. Use `--full` for an independent copy you intend to keep — like a daily RDP box.
+
+```bash
+scripts/new-clone.sh --template 9019 --vmid 110 \
+    --name vm-win-server-2019-rdp --full --rename WIN2019-LAB
+```
+
+The script clones, starts the VM, waits for the hands-off OOBE to settle, optionally renames the guest, then prints the box's hostname and IP so you can RDP straight in.
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--template` | yes | — | VMID of the sealed template to clone. |
+| `--vmid` | yes | — | VMID for the new clone. Use `1xx` for throwaways. |
+| `--name` | yes | — | Proxmox VM name for the clone. |
+| `--full` | no | linked | Make a full, independent copy instead of a thin linked clone. |
+| `--rename` | no | — | Rename the guest OS (triggers a reboot). |
+| `--no-wait` | no | wait | Start the clone but don't wait for it to settle. |
+
+Log in as `Administrator` with the template's password, on `<ip>:3389`.
+
+<Note>
+  Linked clones depend on the template's base disk, so a template can't be deleted while linked clones reference it. Use `--full` for VMs you keep, or destroy the linked clones first.
+</Note>
+
+## Matrix-test one script across versions
+
+`run-cross-version-test.sh` is the core of the lab. Give it a local `.ps1` on the host and a list of `label:templateVMID` targets, and it clones each template, waits until the guest is *stably* reachable (clones reboot once during the final OOBE pass), runs your script, and collects each box's output. Every clone is a throwaway — created and destroyed each run.
+
+```bash
+scripts/run-cross-version-test.sh --script /root/mytest.ps1 \
+    --target 2019:9019 --target 2025:9025
+```
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--script` | yes | — | Local `.ps1` on the host to run on each target. |
+| `--target` | yes (1+) | — | A `label:templateVMID` pair. Repeat for each version. |
+| `--baseid` | no | `900` | Starting VMID for the throwaway clones (incremented per target). |
+
+It prints each target's stdout and also saves per-target results to `/tmp/xtest-<label>.txt`. Because the clones are torn down automatically (`qm stop` + `qm destroy --purge`), you can re-run the matrix as often as you like without cleaning up by hand.
+
+## Inspect what differs between versions
+
+The lab ships a read-only diagnostic, `probe.ps1`, that reports the OS build, Windows PowerShell version, whether PowerShell 7 is installed, the .NET Framework release, whether `winget` is present, the default TLS protocol, and the hotfix count. Run it as your `--script` to capture a side-by-side snapshot across versions.
+
+A probe captured from fresh clones of the 2019 and 2025 templates shows exactly why the oldest version is the one that matters:
+
+| Property | Server 2019 | Server 2025 |
+|---|---|---|
+| OS build | 17763.8880 | 26100.32995 (24H2) |
+| Windows PowerShell | 5.1.17763.8880 | 5.1.26100.32995 |
+| PowerShell 7 | not installed | not installed |
+| .NET Framework | 4.7.2 (release 461814) | 4.8.1 (release 533509) |
+| **`winget` (in-box)** | **absent** | **present — App Installer 1.26.510.0** |
+| `winget` in SYSTEM/non-interactive context | n/a | not on `PATH` (interactive session only) |
+| Default TLS (PowerShell 5.1) | Tls, Tls11, Tls12 | SystemDefault |
+
+### Takeaways for script testing
+
+- **`winget`:** in-box only on 2025; absent on 2019 (and unreliable/absent on 2016–2022). Don't build fleet scripts around it. Even on 2025 it's an interactive per-user MSIX and is **not** on `PATH` for the SYSTEM or scheduled-task context.
+- **.NET Framework:** 4.7.2 on 2019 vs 4.8.1 on 2025. Scripts using 4.8+ APIs pass on 2025 but can fail on 2019 — test against the oldest target.
+- **TLS:** the PowerShell 5.1 default protocol differs across versions. For HTTPS calls, set `[Net.ServicePointManager]::SecurityProtocol = 'Tls12'` explicitly for consistent behavior, especially on older 2016/2019.
+- **PowerShell:** both ship Windows PowerShell 5.1 only; neither has PowerShell 7. Install PS7 explicitly if a script targets it, and test on the version production actually runs.
+
+## Snapshot and roll back a throwaway
+
+For iterative work on a single clone, snapshot a clean state and roll back between runs instead of re-cloning:
+
+```bash
+qm snapshot 110 clean      # capture a clean baseline
+qm rollback 110 clean      # reset to it between test runs
+qm destroy 110 --purge     # remove the clone when done
+```
+
+## What's next
+
+If your templates have aged, see the refresh guidance in [Building templates](/proxmox/building-templates) — clones rearm the eval clock at first boot, but the baked-in patch level only advances when you refresh the template.

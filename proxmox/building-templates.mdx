@@ -1,0 +1,119 @@
+---
+title: "Build, Patch, and Seal a Golden Windows Server Template"
+sidebarTitle: "Building Templates"
+description: "Create a fully unattended Windows Server golden image on Proxmox, bake in Windows Updates headlessly, then sysprep and templatize it for cloning."
+---
+
+A golden template is a sealed, generalized Windows Server image that you clone to get fresh, identical test boxes. Building one is a three-stage pipeline — **build**, **patch**, **seal** — and each stage is a single command run on the Proxmox host, separated by a few waits while the guest installs, updates, and reboots.
+
+<Note>
+  All commands on this page run **on the Proxmox host** (they call `qm`). Connect over SSH with key auth before you begin. The two guest scripts — `wu.ps1` and `probe.ps1` — are pushed into the VM automatically by the host scripts; you don't run them by hand.
+</Note>
+
+## Before you build
+
+Confirm the prerequisites from the [Overview](/proxmox/overview) are in place, then verify the edition index of your ISO. Image indexes can change between ISOs, so check which one is **Standard (Desktop Experience)** before building — it is index `2` on the 2019, 2022, and 2025 eval media observed so far.
+
+```bash
+mount -o loop,ro /mnt/pve/data/template/iso/<iso> /mnt/x
+wimlib-imagex info /mnt/x/sources/install.wim | grep -E '^(Index|Name)'
+umount /mnt/x
+```
+
+Pick the index whose `Name` ends in `SERVERSTANDARD` and pass it to the build with `--index` (the default is `2`).
+
+## Stage 1 — Build
+
+`build-template.sh` creates the VM, generates an `autounattend.xml` from the parameterized template, and runs a fully unattended install. It injects the matching VirtIO drivers, partitions the disk, selects the edition, sets the Administrator password, and configures the standard lab hardware (q35, UEFI + Secure Boot, TPM 2.0, VirtIO SCSI/NIC, QEMU agent).
+
+```bash
+scripts/build-template.sh --version 2022 --vmid 9022 \
+    --iso data:iso/winsrv2022-eval.iso --password 'YourLabPw1!'
+```
+
+The answer file also enables RDP, opens the RDP firewall rule, and installs the VirtIO guest tools on first logon, so the box comes up ready to use.
+
+### Build options
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--version` | yes | — | `2016`, `2019`, `2022`, or `2025`. Selects the VirtIO driver folder (`2k16`–`2k25`) and OS type (`win10` for ≤2019, `win11` for 2022/2025). |
+| `--vmid` | yes | — | VMID for the new VM. Use the `90YY` convention (e.g. `9022`). |
+| `--iso` | yes | — | The Windows Server eval ISO, as `store:iso/<file>` (e.g. `data:iso/winsrv2022-eval.iso`). |
+| `--index` | no | `2` | `install.wim` image index. Verify with `wimlib-imagex info`. |
+| `--password` | no | `ChangeMe-Lab1!` | Local Administrator password. Always pass your own. |
+| `--disk` | no | `local-lvm` | Storage for the system, EFI, and TPM disks. |
+| `--bridge` | no | `vmbr0` | Network bridge for the VirtIO NIC. |
+| `--virtio` | no | `data:iso/virtio-win.iso` | The VirtIO drivers ISO. |
+
+<Note>
+  The Administrator password defaults to a placeholder (`ChangeMe-Lab1!`). Always pass `--password` with your own lab password — and never commit a real one.
+</Note>
+
+### Watch the install
+
+The install is hands-off. Watch it complete from the host:
+
+```bash
+# Screenshot the VM via the QEMU monitor (headless, no GUI needed)
+PVE_HOST=root@<host> scripts/shot.sh 9022
+
+# The agent answers once the install and guest tools have finished
+qm agent 9022 ping
+```
+
+## Stage 2 — Patch (recommended)
+
+Patching bakes the latest cumulative updates into the template so every clone starts current. `patch-template.sh` pushes `wu.ps1` into the guest and runs a headless Windows Update loop. The loop registers an `ONSTART` scheduled task so it **survives reboots**, polls `C:\wu-status.txt` until it reports `DONE`, and caps itself at 8 passes as a safety net against reboot loops.
+
+```bash
+scripts/patch-template.sh --vmid 9022
+```
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--vmid` | yes | — | The VM to patch. |
+| `--wu` | no | `./wu.ps1` | Path to the update-loop script to push. |
+| `--timeout-min` | no | `60` | How long to poll for `DONE` before giving up. |
+
+If patching times out, check `C:\wu-log.txt` inside the guest.
+
+## Stage 3 — Seal
+
+Sealing turns the prepared VM into a reusable template. `seal-template.sh` fills the OOBE answer file with your password, pushes it to the guest, then runs `sysprep /generalize /oobe /shutdown`. Generalizing strips the machine SID so each clone gets a unique identity. After the VM powers off, the script detaches the install media, sets the boot order to the system disk, renames the VM to `-template`, and runs `qm template`.
+
+```bash
+scripts/seal-template.sh --vmid 9022 --version 2022 --password 'YourLabPw1!'
+```
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--vmid` | yes | — | The VM to seal. |
+| `--version` | yes | — | Used for the `vm-win-server-YYYY-template` name. |
+| `--password` | no | `ChangeMe-Lab1!` | Fills the OOBE answer file. Use the same password as the build. |
+| `--oobe` | no | bundled template | Path to a custom OOBE answer file. |
+
+When it finishes you have `vm-win-server-2022-template` (VMID 9022), ready to clone.
+
+<Note>
+  If the VM never powers off, sysprep likely failed. Check the logs at `C:\Windows\System32\Sysprep\Panther` inside the guest.
+</Note>
+
+## Adding a new version
+
+The pipeline is fully parameterized — adding Server 2022 (or any version) needs **no code changes**. Drop the eval ISO into the Proxmox ISO store and run `build-template.sh --version 2022 …`; the script picks the right `2k22` drivers and `win11` OS type automatically.
+
+## Refreshing stale templates
+
+Eval images and patch levels age. Each **clone** gets a fresh ~180-day evaluation at first boot, because sysprep `/generalize` rearms the timer — so day-to-day cloning keeps working. But the **baked-in patch level** only advances when you refresh the template. There are two ways to refresh:
+
+- **Re-patch (fast):** clone the template to a temp VM with `--full`, run the update loop again, re-seal, then promote the refreshed template and retire the old one.
+- **Rebuild (clean):** download a newer eval ISO, transfer it to the Proxmox store, and run the full build → patch → seal sequence against it.
+
+<Note>
+  A template can't be deleted while linked clones still reference its base disk. Use `--full` for the refresh VM, or destroy the linked clones first.
+</Note>
+
+## What's next
+
+Once a template is sealed, head to [Cross-version testing](/proxmox/cross-version-testing) to clone it into a ready box or matrix-test a script across several versions at once.

@@ -1,0 +1,85 @@
+---
+title: "Proxmox Windows Server Lab: Cross-Version Script Testing"
+sidebarTitle: "Overview"
+description: "Build fully unattended Windows Server golden images on Proxmox and clone them to test PowerShell scripts against the oldest Windows Server version in production — not the newest."
+---
+
+The Proxmox Windows Server Lab is a set of host-side scripts and parameterized answer files that build **fully unattended Windows Server golden images** on a Proxmox host, then clone them into throwaway VMs for testing. The point of the lab is to validate your PowerShell scripts against the *oldest* Windows Server version you run in production — not the newest — so you catch compatibility breaks before they reach a real fleet.
+
+## Why test against the oldest version
+
+A script that works on Windows Server 2025 can still fail on 2019 or 2016. Newer releases ship newer .NET, different default TLS settings, and in-box tooling that older versions lack. The lab keeps a 2025 template around for "latest and greatest" features (such as in-box `winget`), but 2025 is **not** the test yardstick — the oldest version in production is.
+
+A measured 2019-vs-2025 comparison from real clones makes the gap concrete:
+
+| Property | Server 2019 | Server 2025 |
+|---|---|---|
+| .NET Framework | 4.7.2 | 4.8.1 |
+| `winget` (in-box) | absent | present (App Installer) |
+| Default TLS (PowerShell 5.1) | Tls, Tls11, Tls12 | SystemDefault |
+| PowerShell 7 | not installed | not installed |
+
+Scripts that rely on 4.8+ APIs, assume `winget` exists, or depend on a specific default TLS protocol pass on 2025 but can break on 2019. See [Cross-version testing](/proxmox/cross-version-testing) for the full probe and how to run your own script across versions.
+
+<Note>
+  Even on 2025, `winget` is an interactive per-user MSIX — it is **not** on `PATH` for the SYSTEM or scheduled-task context. Don't build fleet automation around it.
+</Note>
+
+## How it works
+
+The lab is a host-side pipeline: every script except the two guest helpers runs **on the Proxmox host** over SSH.
+
+<CardGroup cols={2}>
+  <Card title="Build" icon="hammer">
+    `build-template.sh` creates a VM and runs a fully unattended install from a Windows Server eval ISO, injecting VirtIO drivers and setting the admin password from a placeholder.
+  </Card>
+  <Card title="Patch" icon="cloud-arrow-down">
+    `patch-template.sh` pushes a headless Windows Update loop into the guest and bakes the latest cumulative updates into the image. The loop survives reboots.
+  </Card>
+  <Card title="Seal" icon="lock">
+    `seal-template.sh` runs `sysprep /generalize`, detaches install media, and converts the VM into a Proxmox template. Each clone then gets a unique SID and name.
+  </Card>
+  <Card title="Clone and test" icon="copy">
+    `new-clone.sh` spins up a ready, RDP-able box, and `run-cross-version-test.sh` matrix-tests one script across clones of several templates, tearing each one down afterward.
+  </Card>
+</CardGroup>
+
+## Hardware and naming conventions
+
+Every template is built with the same virtual hardware so clones behave consistently:
+
+- **Machine:** q35, OVMF UEFI with Secure Boot, TPM 2.0.
+- **Storage:** VirtIO SCSI, 64 GB, `discard` + `ssd` flags. Linked clones are thin and share the template's base disk.
+- **CPU/memory:** 4 vCPU, 8192 MB memory with a 4096 MB balloon.
+- **NIC:** VirtIO on `vmbr0`, plus the QEMU guest agent.
+- **OS type:** `win10` for Server 2016/2019, `win11` for 2022/2025.
+
+Names and IDs follow a fixed pattern so you can tell golden images, sealed templates, and throwaway clones apart at a glance:
+
+| Item | Convention | Example |
+|---|---|---|
+| Golden image (building) | `vm-win-server-YYYY` | `vm-win-server-2019` |
+| Sealed template | `vm-win-server-YYYY-template` | `vm-win-server-2019-template` |
+| Template VMID | `90YY` | `9019` (2019), `9025` (2025) |
+| Throwaway clone VMID | `1xx` / `9xx` | `110`, `900` |
+
+<Note>
+  The local Administrator account uses placeholder credentials only. The committed answer files ship with the `@@ADMIN_PASSWORD@@` placeholder, and the build and seal scripts substitute your own password at run time via `--password`. Never commit real credentials.
+</Note>
+
+## Prerequisites
+
+- A Proxmox host with `qm`, `genisoimage`, and `wimtools` installed (`apt install genisoimage wimtools`).
+- SSH key access to the host — most scripts run on the host directly.
+- Windows Server eval ISO(s) plus `virtio-win.iso` uploaded to the Proxmox ISO store.
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Building templates" icon="hammer" href="/proxmox/building-templates">
+    Build, patch, and seal a golden Windows Server template with a single command per stage.
+  </Card>
+  <Card title="Cross-version testing" icon="layer-group" href="/proxmox/cross-version-testing">
+    Clone templates and matrix-test one script across multiple Windows Server versions.
+  </Card>
+</CardGroup>
