@@ -7,7 +7,7 @@ description: "Supply your ClickUp API key via CLI flag, environment variable, or
 The extractor resolves your ClickUp API key automatically by working through a priority chain — it checks each source in turn and stops as soon as it finds a valid key. If every automated source fails, it falls back to a secure interactive prompt so you are never locked out.
 
 <Tip>
-  The fastest way to configure every variable on this page is to copy `.env.example` to `.env` and fill in your own values. The repo ships `.env.example` (for `main.py`) and `.env.kfj.example` (for the weekly Google Sheets sync) as the canonical reference for every supported variable. Both files are gitignored once copied.
+  The fastest way to configure every variable on this page is to copy `.env.example` to `.env` and fill in your own values. The extractor **auto-loads `.env` (next to `main.py`) on every CLI run**, so you no longer need to export the variables in each shell. Real environment variables and CLI flags still take precedence, so you can override any value at runtime. The weekly Google Sheets sync (`kfj_task_extractor.py`) does the same for `.env.kfj` — see [Project-local `.env` auto-load](#project-local-env-auto-load) below. Both files are gitignored once copied.
 </Tip>
 
 ## Get your ClickUp API key
@@ -116,6 +116,81 @@ The extractor checks these sources in the order shown below.
 | 4 | 1Password SDK (service account) | `OP_SERVICE_ACCOUNT_TOKEN` set |
 | 5 | 1Password CLI (`op read`) | `op` installed and signed in, `CLICKUP_API_SECRET_REFERENCE` set |
 | 6 | Interactive prompt | Fallback — key entered at runtime |
+
+## Project-local `.env` auto-load
+
+Instead of exporting `CLICKUP_WORKSPACE_NAME`, `CLICKUP_SPACE_NAME`, `OP_ENVIRONMENT_ID`, and other settings in every shell, you can drop them into a `.env` file next to the script and the extractor will read them at startup.
+
+**When to use it**
+
+- You run the extractor from multiple shells, an IDE, or a scheduled job and want the same configuration applied everywhere.
+- You want workspace/space defaults, 1Password Environment IDs, and secret-reference pointers persisted with the project rather than your shell profile.
+- You want to keep CLI flags as a one-off override without rewriting your environment.
+
+**How it works**
+
+On every CLI invocation, `main.py` reads `.env` from the directory containing the script and `kfj_task_extractor.py` reads `.env.kfj` from the same location. The loader runs before any configuration is evaluated, so values like `CLICKUP_WORKSPACE_NAME` and `OP_ENVIRONMENT_ID` apply on a plain `python main.py` even when the shell has not exported them. The loader:
+
+- Skips blank lines, comments (`#`), and malformed entries.
+- Accepts an optional `export ` prefix on each line.
+- Strips matching single or double quotes around values.
+- **Never overrides** variables that are already set in the real environment or values passed via CLI flags.
+- Does nothing when the file is missing — it's a no-op, not an error.
+
+The loader has no external dependencies, so it works without installing `python-dotenv`.
+
+```bash title=".env (next to main.py)"
+# Workspace + space defaults
+CLICKUP_WORKSPACE_NAME="Acme"
+CLICKUP_SPACE_NAME='Engineering'
+
+# 1Password Environment for CLICKUP_API_KEY / GEMINI_API_KEY
+export OP_ENVIRONMENT_ID=YOUR_ENVIRONMENT_ID
+
+# Or a literal API key (kept out of git because .env is gitignored)
+# CLICKUP_API_KEY=pk_...
+```
+
+```bash
+# Picks up .env automatically — no shell exports needed.
+python main.py
+
+# CLI flag still wins over .env.
+python main.py --workspace "Other Workspace"
+```
+
+### Secret-safe `.env.kfj` for the weekly Google Sheets sync
+
+`kfj_task_extractor.py` auto-loads `.env.kfj` with the same rules, with one extra safeguard for 1Password references.
+
+The loader **skips `op://` values for `CLICKUP_API_KEY` and `GOOGLE_SHEETS_CREDENTIALS_JSON`**, because those variables are expected to hold the resolved secret at runtime (not the literal `op://` URI). Leaving them in `.env.kfj` is still useful: `op run --env-file=.env.kfj` and the script's built-in 1Password chain resolve them into real credentials before the script uses them.
+
+Other variables load normally, including:
+
+- Plain configuration like `KFJ_LIST_ID`, `KFJ_SHEET_ID`, `KFJ_TAB_NAME`.
+- `KFJ_*_SECRET_REFERENCE` pointer variables (for example `KFJ_GOOGLE_SHEETS_CREDENTIALS_SECRET_REFERENCE`), whose values are themselves `op://` URIs that the 1Password chain consumes.
+- Literal (non-`op://`) values for `CLICKUP_API_KEY` or `GOOGLE_SHEETS_CREDENTIALS_JSON` if you choose to store them directly.
+
+```bash title=".env.kfj (next to kfj_task_extractor.py)"
+KFJ_LIST_ID=901234567890
+KFJ_SHEET_ID=1AbCdEf...
+KFJ_TAB_NAME="Weekly KFJ"
+
+# Skipped by the auto-loader — resolved by op run / the 1Password chain.
+CLICKUP_API_KEY=op://Private/ClickUp/credential
+GOOGLE_SHEETS_CREDENTIALS_JSON=op://Private/GSheets/credential
+
+# Loaded normally — pointer variable consumed by the 1Password chain.
+KFJ_GOOGLE_SHEETS_CREDENTIALS_SECRET_REFERENCE="op://Private/GSheets/credential"
+```
+
+```bash
+# Plain run auto-loads .env.kfj; the 1Password chain resolves the op:// secrets.
+python kfj_task_extractor.py
+
+# Or inject everything explicitly via 1Password.
+op run --env-file=.env.kfj -- python kfj_task_extractor.py
+```
 
 ## Workspace selection
 
