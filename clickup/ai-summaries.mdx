@@ -4,7 +4,7 @@ sidebarTitle: "AI Summaries"
 description: "Add concise 1–2 sentence status summaries and AI-estimated ETAs to each exported ClickUp task using Claude (Max OAuth) or Google Gemini, generated concurrently with graceful fallback."
 ---
 
-When you enable AI summaries, the extractor sends each task's fields to your chosen AI backend and appends a concise 1–2 sentence status blurb in the first person (e.g. "I completed the initial review and need to address two open comments.") into the `Notes` column. Tasks without a due date also receive an AI-estimated **ETA** from the same source. Both passes run with bounded concurrency and gracefully fall back to non-AI content if the provider is unavailable.
+When you enable AI summaries, the extractor sends each task's fields to your chosen AI backend and appends a concise 1–2 sentence first-person status blurb into the `Notes` column (e.g. "I completed the initial review and need to address two open comments."). Tasks without a due date also receive an AI-estimated **ETA** from the same source. Both passes run with bounded concurrency and gracefully fall back to non-AI content when the provider is unavailable.
 
 ## Choose an AI source
 
@@ -44,7 +44,7 @@ python main.py --ai-summary --ai-source Both
 
 ## Claude (Max OAuth) — default source
 
-The `Claude` source shells out to the local [`claude` CLI](https://docs.claude.com/en/docs/claude-code) in headless print mode (`claude -p`) and supplies each task's fields over stdin. Because the CLI authenticates with your Claude Code OAuth, the call is billed against your **Max or Pro subscription** — there is no Anthropic API key to manage and no Gemini-style free-tier rate limit.
+The `Claude` source shells out to the local [`claude` CLI](https://docs.claude.com/en/docs/claude-code) in headless print mode (`claude -p`) and supplies each task's fields over stdin. The CLI authenticates with your Claude Code OAuth, so each call bills your **Max or Pro subscription**. There is no Anthropic API key to manage and no Gemini-style free-tier rate limit.
 
 To use it, install Claude Code and sign in once with `claude login`. After that, the extractor finds the CLI on `PATH` and calls it automatically.
 
@@ -87,7 +87,7 @@ export GEMINI_MODEL=gemini-2.5-flash
 python main.py --ai-summary --ai-source Gemini --gemini-api-key YOUR_KEY
 ```
 
-Rate limits are detected via HTTP `429` responses, `RESOURCE_EXHAUSTED` errors, and keywords such as `quota`, `rate limit`, `rpm`, and `overload` in the error message. On a rate-limit error the extractor backs off (`initial_delay × 2^attempt` seconds, up to two retries) and, if all retries fail, disables further Gemini calls for the rest of the run.
+The extractor detects rate limits via HTTP `429` responses, `RESOURCE_EXHAUSTED` errors, and keywords such as `quota`, `rate limit`, `rpm`, and `overload` in the error message. On a rate-limit error it backs off for `initial_delay × 2^attempt` seconds, up to two retries. If every retry fails, it disables further Gemini calls for the rest of the run.
 
 ## Concurrent generation
 
@@ -118,7 +118,7 @@ Tasks **without a due date** receive an estimated ETA in a second bounded-concur
 | `Gemini` | Gemini ETA |
 | `ClickUp` | Deterministic priority/status fallback |
 
-Every task is first assigned a deterministic baseline ETA from its priority and status, so the AI pass only **upgrades** due-date-less tasks. If AI is unavailable for any reason (CLI missing, errors, timeout, usage limit), the deterministic baseline remains in place — `calculate_eta()` always returns a valid value.
+The extractor first assigns every task a deterministic baseline ETA from its priority and status, so the AI pass only **upgrades** due-date-less tasks. If AI is unavailable for any reason (CLI missing, errors, timeout, usage limit), the deterministic baseline remains in place and `calculate_eta()` always returns a valid value.
 
 <Note>
   The `ClickUp` source uses the deterministic ETA because ClickUp itself does not expose an ETA custom field to read.
