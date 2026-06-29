@@ -77,7 +77,11 @@ The extractor checks these sources in the order shown below.
     python main.py
     ```
 
-    The extractor uses the 1Password Python SDK with Desktop App auth first, then falls back to `op environment read` via the CLI.
+    Setting `OP_ENVIRONMENT_ID` is on its own enough to opt into the Environment lookup — you do **not** also need to set `CLICKUP_API_SECRET_REFERENCE` or `GEMINI_API_SECRET_REFERENCE`. An empty secret reference now means "look the key up in the Environment by its variable name" (`CLICKUP_API_KEY`, `GEMINI_API_KEY`).
+
+    The extractor authenticates via the 1Password Python SDK using Desktop App auth (or a service account token if one is configured). If you happen to be running the beta `op` CLI with native Environments support, it can also re-exec under `op run --environments <id>`; on a stable `op` (e.g. 2.34.1) the extractor detects that the flag is unsupported and falls through to the SDK path instead, so you do not need the beta CLI for this flow to work.
+
+    This path also works on Windows: the previous subprocess hang and the spurious virtualenv re-exec have both been fixed.
 
     **1Password SDK (service accounts / automation)**
 
@@ -98,7 +102,7 @@ The extractor checks these sources in the order shown below.
     python main.py
     ```
 
-    When either reference is empty, the extractor skips the 1Password lookup for that key and falls back to `CLICKUP_API_KEY` / `--api-key` (or the equivalent Gemini source).
+    When either reference is empty *and* `OP_ENVIRONMENT_ID` is not set, the extractor skips the 1Password lookup for that key and falls back to `CLICKUP_API_KEY` / `--api-key` (or the equivalent Gemini source). If `OP_ENVIRONMENT_ID` is set, an empty reference instead means "resolve the key from the Environment by its variable name".
 
     <Note>
       If you set `OP_ENVIRONMENT_ID`, the extractor reads from that Environment and does **not** fall through to vault‑based secret references. Remove `OP_ENVIRONMENT_ID` if you want the vault path instead.
@@ -112,7 +116,7 @@ The extractor checks these sources in the order shown below.
 |---|---|---|
 | 1 | `--api-key` CLI flag | Key passed at runtime |
 | 2 | `CLICKUP_API_KEY` environment variable | Variable exported in shell |
-| 3 | 1Password Environment (SDK then CLI) | `OP_ENVIRONMENT_ID` set |
+| 3 | 1Password Environment (SDK, with optional beta-CLI re-exec) | `OP_ENVIRONMENT_ID` set (no secret reference required) |
 | 4 | 1Password SDK (service account) | `OP_SERVICE_ACCOUNT_TOKEN` set |
 | 5 | 1Password CLI (`op read`) | `op` installed and signed in, `CLICKUP_API_SECRET_REFERENCE` set |
 | 6 | Interactive prompt | Fallback — key entered at runtime |
@@ -166,7 +170,7 @@ When you enable AI summaries with `--ai-summary`, the extractor needs a Google G
     python main.py --ai-summary
     ```
 
-    If the Environment method is not configured, the extractor falls back to the vault secret reference defined in `GEMINI_API_SECRET_REFERENCE` (an `op://<vault>/<item>/credential` URI). Leave that variable empty to skip the 1Password lookup entirely and rely on `--gemini-api-key` / `GEMINI_API_KEY`.
+    With `OP_ENVIRONMENT_ID` set, you do not need to also set `GEMINI_API_SECRET_REFERENCE` — the extractor resolves `GEMINI_API_KEY` from the Environment by name. If the Environment method is not configured, it falls back to the vault secret reference defined in `GEMINI_API_SECRET_REFERENCE` (an `op://<vault>/<item>/credential` URI). With neither `OP_ENVIRONMENT_ID` nor `GEMINI_API_SECRET_REFERENCE` set, the 1Password lookup is skipped entirely and the extractor relies on `--gemini-api-key` / `GEMINI_API_KEY`.
 
     ```bash
     export GEMINI_API_SECRET_REFERENCE="op://<vault>/<item>/credential"
