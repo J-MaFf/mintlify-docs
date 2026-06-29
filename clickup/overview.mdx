@@ -1,15 +1,15 @@
 ---
 title: "ClickUp Task Extractor: Export Tasks to Docs and Sheets"
 sidebarTitle: "Overview"
-description: "Fetch ClickUp tasks from any workspace, enrich them with Gemini AI summaries, and export to Markdown, HTML, CSV, or Google Sheets."
+description: "Fetch ClickUp tasks from any workspace, enrich them with AI summaries from Claude or Gemini, and export to Markdown, HTML, CSV, or Google Sheets."
 ---
 
-The ClickUp Task Extractor is a Python CLI that connects to the ClickUp API, pulls tasks from a workspace and space you specify, and writes the results to a local file or a Google Sheet. You can filter by date range, include completed tasks, run in interactive review mode, and optionally attach one‑sentence AI summaries powered by Google Gemini — all from a single command.
+The ClickUp Task Extractor is a Python CLI that connects to the ClickUp API, pulls tasks from a workspace and space you specify, and writes the results to a local file or a Google Sheet. You can filter by date range, include completed tasks, run in interactive review mode, and optionally attach AI‑powered status summaries and ETAs (via Claude through your Claude Code Max/Pro OAuth — the default — or Google Gemini) — all from a single command.
 
 ## What it does
 
 - **Export to Markdown, HTML, or CSV** — files land in `output/` with an auto‑generated timestamp in the filename.
-- **AI summaries** — adds a concise 1–2 sentence Gemini‑powered status blurb to every task (optional).
+- **AI summaries and ETAs** — adds concise 1–2 sentence status blurbs and AI‑estimated ETAs to every task, generated concurrently via Claude (default, no API key) or Gemini (optional).
 - **Google Sheets sync** — `kfj_task_extractor.py` writes open tasks straight into a weekly tracking spreadsheet.
 - **Flexible filtering** — narrow results to this week, last week, or all open tasks; optionally include completed and archived work.
 - **Interactive mode** — review each task in the terminal and choose which ones to export before writing to disk.
@@ -23,7 +23,7 @@ The ClickUp Task Extractor is a Python CLI that connects to the ClickUp API, pul
     All CLI options, output formats, date filters, and the Google Sheets sync script.
   </Card>
   <Card title="AI Summaries" icon="sparkles" href="/clickup/ai-summaries">
-    Enable Gemini‑powered task summaries, choose the AI source, and understand model‑tier fallback.
+    Enable AI task summaries and ETAs, choose between Claude (Max OAuth) and Gemini, and understand concurrency and fallback behaviour.
   </Card>
 </CardGroup>
 

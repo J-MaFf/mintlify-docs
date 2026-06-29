@@ -1,125 +1,148 @@
 ---
-title: "Generate AI Summaries for ClickUp Tasks with Gemini"
+title: "Generate AI Summaries and ETAs for ClickUp Tasks"
 sidebarTitle: "AI Summaries"
-description: "Use Google Gemini to add concise 1–2 sentence status summaries to each exported ClickUp task, with automatic retry, backoff, and rate-limit handling."
+description: "Add concise 1–2 sentence status summaries and AI-estimated ETAs to each exported ClickUp task using Claude (Max OAuth) or Google Gemini, generated concurrently with graceful fallback."
 ---
 
-When you enable AI summaries, the extractor sends each task's fields to Google Gemini and appends a concise 1–2 sentence status blurb in the first person (e.g. "I completed the initial review and need to address two open comments."). Summaries are written into the `Notes` column of your export. The feature is entirely optional and gracefully falls back to the task's original content if the API is unavailable.
+When you enable AI summaries, the extractor sends each task's fields to your chosen AI backend and appends a concise 1–2 sentence status blurb in the first person (e.g. "I completed the initial review and need to address two open comments.") into the `Notes` column. Tasks without a due date also receive an AI-estimated **ETA** from the same source. Both passes run with bounded concurrency and gracefully fall back to non-AI content if the provider is unavailable.
 
-## Prerequisites
+## Choose an AI source
 
-You need:
+Use `--ai-source` to pick the backend that generates summaries (and AI-powered ETAs).
 
-- A **Google Gemini API key** — get one at [aistudio.google.com](https://aistudio.google.com).
-- The **`google-genai`** package, included in `requirements.txt`:
-
-```bash
-pip install google-genai>=1.0.0
-```
-
-See [Authentication](/clickup/authentication#gemini-api-key-for-ai-summaries) for the full list of ways to supply your Gemini key.
-
-## Enable AI summaries
-
-Add `--ai-summary` to any `main.py` invocation. Supply the Gemini key via flag or let the extractor load it automatically:
-
-```bash
-# Key via flag
-python main.py --ai-summary --gemini-api-key YOUR_GEMINI_API_KEY
-
-# Key from environment variable
-export GEMINI_API_KEY=YOUR_GEMINI_API_KEY
-python main.py --ai-summary
-
-# Key from 1Password (OP_ENVIRONMENT_ID must be set)
-python main.py --ai-summary
-```
-
-If you run without `--ai-summary`, the extractor prompts you interactively at startup and lets you enable it there instead.
-
-<Note>
-  If you enable `--ai-summary` but do not provide a Gemini key through any source, the extractor prompts for it at runtime. Pressing Enter without typing a key disables AI summaries for that run.
-</Note>
-
-## Choose the AI source
-
-Use `--ai-source` to control which AI backend generates the summary text.
-
-<ParamField path="--ai-source" type="string" default="Both">
-  Accepted values: `Both`, `ClickUp`, `Gemini`.
+<ParamField path="--ai-source" type="string" default="Claude">
+  Accepted values: `Claude`, `Gemini`, `ClickUp`, `Both`.
 </ParamField>
 
-| Value | Behaviour |
-|---|---|
-| `Both` (default) | Reads the ClickUp AI custom field ("Summary") first. If the field is empty or missing, generates a summary with Gemini. |
-| `ClickUp` | Uses only the ClickUp AI custom field. No Gemini calls are made and no Gemini key is required. |
-| `Gemini` | Calls Gemini for every task regardless of the ClickUp AI field. |
+| Value | What it uses for summaries | What it uses for ETA | API key required? |
+|---|---|---|---|
+| `Claude` (default) | Local `claude` CLI (Claude Code) in headless print mode, billed against your Max/Pro **OAuth subscription** | Claude (`get_claude_eta`) | No — uses your Claude Code login |
+| `Gemini` | Google Gemini API with tiered model fallback | Gemini | Yes — Google Gemini API key |
+| `ClickUp` | The task's existing ClickUp `Summary` custom field | **Deterministic** priority/status estimate | No |
+| `Both` | ClickUp `Summary` field first, then falls back to **Claude** | Claude | No |
 
 ```bash
-# Use the ClickUp AI field only — no Gemini key needed
-python main.py --ai-summary --ai-source ClickUp
+# Default — Claude via your Max subscription, no API key needed
+python main.py --ai-summary
 
-# Force Gemini for every task
+# Explicit Claude
+python main.py --ai-summary --ai-source Claude
+
+# Gemini (requires a Gemini API key)
 python main.py --ai-summary --ai-source Gemini --gemini-api-key YOUR_KEY
 
-# Default: ClickUp field when available, Gemini as fallback
+# ClickUp Summary field only — no AI calls
+python main.py --ai-summary --ai-source ClickUp
+
+# ClickUp field when available, Claude as fallback
 python main.py --ai-summary --ai-source Both
 ```
 
-## Model
+<Note>
+  If you run without `--ai-summary`, the extractor prompts you at startup. Claude is the default — pressing Enter accepts it and no key is required. The extractor only loads or prompts for a Gemini key when you pick `Gemini`.
+</Note>
 
-The extractor uses `gemini-2.5-flash-lite` by default for all AI summary generation — the GA Flash‑Lite tier model. Override it by setting the `GEMINI_MODEL` environment variable to any other published Gemini model id (no code change required):
+## Claude (Max OAuth) — default source
+
+The `Claude` source shells out to the local [`claude` CLI](https://docs.claude.com/en/docs/claude-code) in headless print mode (`claude -p`) and supplies each task's fields over stdin. Because the CLI authenticates with your Claude Code OAuth, the call is billed against your **Max or Pro subscription** — there is no Anthropic API key to manage and no Gemini-style free-tier rate limit.
+
+To use it, install Claude Code and sign in once with `claude login`. After that, the extractor finds the CLI on `PATH` and calls it automatically.
+
+<Tip>
+  Even if `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` are set in your shell, the extractor scrubs them from the `claude` subprocess environment so summaries always bill the subscription, not the API.
+</Tip>
+
+### Claude environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CLAUDE_SUMMARY_MODEL` | `claude-haiku-4-5-20251001` | Model id passed to `claude --model`. Accepts a full id or a CLI alias (`haiku`, `sonnet`, `opus`). Reused for ETA estimation. |
+| `CLAUDE_SUMMARY_TIMEOUT` | `120` | Per-call timeout in seconds. The extractor falls back to non-AI content if the CLI hangs longer. |
 
 ```bash
-export GEMINI_MODEL=gemini-2.5-flash
+# Use a heavier model for higher-quality summaries
+export CLAUDE_SUMMARY_MODEL=sonnet
 python main.py --ai-summary
 ```
 
-Rate limits are detected via HTTP `429` responses, `RESOURCE_EXHAUSTED` errors, and keywords such as `quota`, `rate limit`, `rpm`, and `overload` in the error message (case‑insensitive).
+### Claude fallback behaviour
 
-## Rate limit handling
+The Claude path always degrades gracefully — your export completes even if Claude is entirely unavailable:
 
-When a rate limit is hit, the extractor responds automatically — you do not need to do anything:
+| Situation | Behaviour |
+|---|---|
+| `claude` CLI not found on `PATH` | Prints a one-time warning, falls back to the raw task content for the rest of the run. |
+| CLI exits with a non-zero status or an unexpected error | Logs the error and uses the task's original content for that task. |
+| Call exceeds `CLAUDE_SUMMARY_TIMEOUT` | Logs a timeout and falls back to the raw content for that task. |
+| Subscription **usage limit** hit (rate-limit / "usage limit" message in stderr) | Disables further Claude calls for the rest of the run and short-circuits any queued summaries; remaining tasks use the raw content. |
 
-<Steps>
-  <Step title="Exponential backoff with retry">
-    On a rate limit error the extractor waits `initial_delay × 2^attempt` seconds and retries up to two times before giving up on that task. You see a message like:
+## Gemini
 
-    ```
-    ⏳ Rate limit hit. Waiting 2s before retry (attempt 1/3)...
-    ✅ Wait complete - retrying API call...
-    ```
-  </Step>
-  <Step title="Session-level skip after exhausted retries">
-    If all retries are exhausted, the extractor sets a session flag and skips AI summaries for the rest of the run without making further API calls:
+`--ai-source Gemini` keeps the original Google Gemini path. It still requires a Gemini API key — see [Authentication](/clickup/authentication#gemini-api-key-for-ai-summaries) for every supported way to supply one.
 
-    ```
-    [⊘] API rate limited - skipping AI summary for: Task Name
-    ```
+The default Gemini model is `gemini-2.5-flash-lite`. Override it by setting `GEMINI_MODEL`:
 
-    Tasks that are skipped retain their original field content.
-  </Step>
-  <Step title="Graceful fallback">
-    If the `google-genai` SDK is not installed, the Gemini key is missing, or the API fails with a non-retryable error, the extractor falls back to the task's original description and notes. Your export always completes even if AI generation is entirely unavailable.
-  </Step>
-</Steps>
+```bash
+export GEMINI_MODEL=gemini-2.5-flash
+python main.py --ai-summary --ai-source Gemini --gemini-api-key YOUR_KEY
+```
 
-<Tip>
-  Run with `--ai-source ClickUp` during development and testing to avoid consuming Gemini quota while iterating on other settings.
-</Tip>
+Rate limits are detected via HTTP `429` responses, `RESOURCE_EXHAUSTED` errors, and keywords such as `quota`, `rate limit`, `rpm`, and `overload` in the error message. On a rate-limit error the extractor backs off (`initial_delay × 2^attempt` seconds, up to two retries) and, if all retries fail, disables further Gemini calls for the rest of the run.
+
+## Concurrent generation
+
+Summaries are generated in a single bounded-concurrency pass **after** all tasks are gathered, not inline during task processing. This typically cuts wall-clock time on large exports by ~3×. Output order is preserved, and once a provider hits a usage or rate limit, queued calls short-circuit instead of waiting.
+
+<ParamField path="AI_SUMMARY_CONCURRENCY" type="integer" default="4">
+  Maximum number of summaries (and ETAs) generated in parallel. Clamped to the task count. Applies to both Claude and Gemini.
+</ParamField>
+
+```bash
+# Speed up a large export
+export AI_SUMMARY_CONCURRENCY=8
+python main.py --ai-summary
+
+# Be gentler on rate limits / slow machines
+export AI_SUMMARY_CONCURRENCY=2
+python main.py --ai-summary
+```
+
+## AI-powered ETA estimation
+
+Tasks **without a due date** receive an estimated ETA in a second bounded-concurrency pass that runs after summaries. The pass reuses the same `--ai-source` dispatch and `AI_SUMMARY_CONCURRENCY` worker count.
+
+| `--ai-source` | ETA source |
+|---|---|
+| `Claude` (default) | Claude CLI ETA |
+| `Both` | Claude CLI ETA |
+| `Gemini` | Gemini ETA |
+| `ClickUp` | Deterministic priority/status fallback |
+
+Every task is first assigned a deterministic baseline ETA from its priority and status, so the AI pass only **upgrades** due-date-less tasks. If AI is unavailable for any reason (CLI missing, errors, timeout, usage limit), the deterministic baseline remains in place — `calculate_eta()` always returns a valid value.
+
+<Note>
+  The `ClickUp` source uses the deterministic ETA because ClickUp itself does not expose an ETA custom field to read.
+</Note>
 
 ## Example commands
 
 ```bash
-# Minimal: enable AI with a key passed directly
-python main.py --ai-summary --gemini-api-key YOUR_KEY
+# Minimal: default Claude source, no API key needed
+python main.py --ai-summary
 
-# Both sources, HTML output, this week only
-python main.py --ai-summary --ai-source Both --output-format HTML --date-filter ThisWeek
+# Default source, HTML output, this week only
+python main.py --ai-summary --output-format HTML --date-filter ThisWeek
 
-# Gemini only, Markdown output, all open tasks
+# Force Gemini, Markdown output, all open tasks
 python main.py --ai-summary --ai-source Gemini --gemini-api-key YOUR_KEY --output-format Markdown
 
-# ClickUp AI field only — no Gemini key required
+# ClickUp AI field only — no AI calls and deterministic ETA
 python main.py --ai-summary --ai-source ClickUp
+
+# Crank up parallelism on a large export
+AI_SUMMARY_CONCURRENCY=8 python main.py --ai-summary
 ```
+
+<Tip>
+  Run with `--ai-source ClickUp` during development to avoid consuming Claude subscription usage or Gemini quota while iterating on other settings.
+</Tip>
