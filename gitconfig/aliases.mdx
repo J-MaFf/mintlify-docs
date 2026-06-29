@@ -164,7 +164,7 @@ Use these aliases to manage the configuration itself.
 </Note>
 
 <Note>
-  `git skill list`, `git skill sync`, `git skill status`, and `git skill publish` require the separate [`claude-skills`](https://github.com/J-MaFf/claude-skills) repo to be cloned to `~/.claude/skills` — that repo supplies both the skills and the wrapper scripts these aliases drive. If the directory is missing, each subcommand exits with an actionable error pointing you at the setup commands:
+  `git skill list`, `git skill sync`, `git skill status`, and `git skill publish` all depend on the separate [`claude-skills`](https://github.com/J-MaFf/claude-skills) repo at `~/.claude/skills`. That repo supplies both the skills and the wrapper scripts these aliases drive. If the directory is missing, each subcommand exits with an actionable error pointing you at the setup commands:
 
   ```bash
   git clone https://github.com/J-MaFf/claude-skills.git ~/.claude/skills
