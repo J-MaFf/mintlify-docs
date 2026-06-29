@@ -129,7 +129,7 @@ Instead of exporting `CLICKUP_WORKSPACE_NAME`, `CLICKUP_SPACE_NAME`, `OP_ENVIRON
 
 **How it works**
 
-On every CLI invocation, `main.py` reads `.env` from the directory containing the script and `kfj_task_extractor.py` reads `.env.kfj` from the same location. The loader runs before any configuration is evaluated, so values like `CLICKUP_WORKSPACE_NAME` and `OP_ENVIRONMENT_ID` apply on a plain `python main.py` even when the shell has not exported them. The loader:
+On every CLI invocation, `main.py` reads `.env` from the directory containing the script, and `kfj_task_extractor.py` reads `.env.kfj` from the same location. The loader runs before any configuration is evaluated. Values like `CLICKUP_WORKSPACE_NAME` and `OP_ENVIRONMENT_ID` apply on a plain `python main.py` even when the shell has not exported them. The loader:
 
 - Skips blank lines, comments (`#`), and malformed entries.
 - Accepts an optional `export ` prefix on each line.
@@ -163,7 +163,7 @@ python main.py --workspace "Other Workspace"
 
 `kfj_task_extractor.py` auto-loads `.env.kfj` with the same rules, with one extra safeguard for 1Password references.
 
-The loader **skips `op://` values for `CLICKUP_API_KEY` and `GOOGLE_SHEETS_CREDENTIALS_JSON`**, because those variables are expected to hold the resolved secret at runtime (not the literal `op://` URI). Leaving them in `.env.kfj` is still useful: `op run --env-file=.env.kfj` and the script's built-in 1Password chain resolve them into real credentials before the script uses them.
+The loader **skips `op://` values for `CLICKUP_API_KEY` and `GOOGLE_SHEETS_CREDENTIALS_JSON`**. The script expects those variables to hold the resolved secret at runtime, not the literal `op://` URI. Leaving them in `.env.kfj` is still useful: `op run --env-file=.env.kfj` and the script's built-in 1Password chain resolve them into real credentials before the script uses them.
 
 Other variables load normally, including:
 
