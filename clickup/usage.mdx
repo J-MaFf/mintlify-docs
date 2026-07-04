@@ -69,15 +69,22 @@ python main.py --api-key YOUR_KEY --output-format HTML --date-filter ThisWeek
 </ParamField>
 
 <ParamField path="--ai-summary" type="boolean">
-  Enable AI‑generated summaries for each task using Google Gemini. Requires a Gemini API key — see [AI Summaries](/clickup/ai-summaries).
+  Enable AI‑generated summaries and AI‑estimated ETAs for each task. The default source is **Claude** via your Claude Code Max/Pro OAuth (no API key needed); Gemini and the ClickUp Summary field are also available. See [AI Summaries](/clickup/ai-summaries).
 </ParamField>
 
-<ParamField path="--ai-source" type="string" default="Both">
-  Which AI source to use for summaries. Accepted values: `Both` (prefer the ClickUp AI custom field, fall back to Gemini), `ClickUp`, or `Gemini`. See [AI Summaries](/clickup/ai-summaries) for details.
+<ParamField path="--ai-source" type="string" default="Claude">
+  Which AI source to use for summaries **and** for ETA estimation on tasks without a due date. Accepted values:
+
+  - `Claude` (default) — local `claude` CLI via your Max/Pro OAuth; no API key needed.
+  - `Gemini` — Google Gemini API; requires `--gemini-api-key`.
+  - `ClickUp` — read the ClickUp AI custom field for the summary; use a deterministic priority/status ETA.
+  - `Both` — prefer the ClickUp AI field, fall back to Claude.
+
+  See [AI Summaries](/clickup/ai-summaries) for details, including the concurrency model and graceful fallback behaviour.
 </ParamField>
 
 <ParamField path="--gemini-api-key" type="string">
-  Your Google Gemini API key. Only needed when `--ai-summary` is set and the key is not available from the environment or 1Password.
+  Your Google Gemini API key. Only loaded when `--ai-source Gemini` is selected and the key is not available from the environment or 1Password.
 </ParamField>
 
 ## Output formats
