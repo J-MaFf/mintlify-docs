@@ -37,11 +37,11 @@ python main.py --api-key YOUR_KEY --output-format HTML --date-filter ThisWeek
 </ParamField>
 
 <ParamField path="--workspace" type="string">
-  The name of the ClickUp workspace to target. Falls back to the `CLICKUP_WORKSPACE_NAME` environment variable; if both are unset you are prompted at runtime. See [Authentication](/clickup/authentication#workspace-selection).
+  The name of the ClickUp workspace to target. Falls back to the `CLICKUP_WORKSPACE_NAME` environment variable. If both are unset or the name doesn't match, the extractor shows a numbered list of your workspaces and prompts you to pick one. See [Workspace and space pickers](#workspace-and-space-pickers).
 </ParamField>
 
 <ParamField path="--space" type="string">
-  The name of the ClickUp space within the workspace to extract tasks from. Falls back to the `CLICKUP_SPACE_NAME` environment variable; if both are unset you are prompted at runtime.
+  The name of the ClickUp space within the workspace to extract tasks from. Falls back to the `CLICKUP_SPACE_NAME` environment variable. If both are unset or the name doesn't match, the extractor shows a numbered list of available spaces and prompts you to pick one. See [Workspace and space pickers](#workspace-and-space-pickers).
 </ParamField>
 
 <ParamField path="--list" type="string">
@@ -86,6 +86,40 @@ python main.py --api-key YOUR_KEY --output-format HTML --date-filter ThisWeek
 <ParamField path="--gemini-api-key" type="string">
   Your Google Gemini API key. Only loaded when `--ai-source Gemini` is selected and the key is not available from the environment or 1Password.
 </ParamField>
+
+## Workspace and space pickers
+
+`--workspace` and `--space` (and their `CLICKUP_WORKSPACE_NAME` / `CLICKUP_SPACE_NAME` environment equivalents) are optional. The extractor resolves them in this order:
+
+1. Match the configured name against the workspaces returned by ClickUp's `/team` endpoint, then against the spaces inside that workspace.
+2. If the name is unset or doesn't match, the extractor prints the available options and prompts you to choose. When only one workspace is available, it is selected automatically.
+3. If the `/team` endpoint itself fails (rare — older `SHARD_006` accounts), the extractor falls back to `CLICKUP_TEAM_ID` from the environment or config. As a last resort, it prompts for a raw Team/Workspace ID.
+
+This means a first-time interactive run needs no workspace or space configuration — just run `python main.py` and pick from the list:
+
+```bash
+python main.py
+```
+
+```text
+🏢 Fetching workspaces...
+Available workspaces: Acme, Personal
+Select a workspace: [1] Acme  [2] Personal
+> 1
+✅ Workspace found: Acme
+Available spaces: Engineering, Marketing, Operations
+Select a space: [1] Engineering  [2] Marketing  [3] Operations
+> 1
+✅ Space found: Engineering
+```
+
+Your selection is reflected in the export's header and filename, so re-runs can be locked in by exporting the resolved names:
+
+```bash
+export CLICKUP_WORKSPACE_NAME="Acme"
+export CLICKUP_SPACE_NAME="Engineering"
+python main.py
+```
 
 ## Output formats
 

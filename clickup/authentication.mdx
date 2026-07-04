@@ -127,12 +127,12 @@ The extractor reads workspace and space selection from environment variables or 
 
 | Variable | Equivalent flag | Purpose |
 |---|---|---|
-| `CLICKUP_WORKSPACE_NAME` | `--workspace` | Workspace (team) name to extract from. |
-| `CLICKUP_SPACE_NAME` | `--space` | Space within the workspace to pull tasks from. |
-| `CLICKUP_TEAM_ID` | — | Numeric team/workspace ID. Used as a fallback when the workspace name cannot be resolved via the API; otherwise the extractor prompts. |
+| `CLICKUP_WORKSPACE_NAME` | `--workspace` | Workspace (team) name to extract from. When unset or unmatched, the extractor lists your workspaces and prompts you to pick one (auto-selecting if you only belong to one). |
+| `CLICKUP_SPACE_NAME` | `--space` | Space within the workspace to pull tasks from. When unset or unmatched, the extractor lists the available spaces and prompts you to pick one. |
+| `CLICKUP_TEAM_ID` | — | Numeric team/workspace ID. Used only as a last-resort fallback when the `/team` endpoint genuinely fails to return any workspaces. |
 | `CLICKUP_AI_SUMMARY_FIELD_ID` | — | Optional override for the ClickUp custom-field ID used as the "Summary" field. Leave unset to use the built-in default. |
 
-CLI flags take precedence over environment variables. Any value left unset falls back to an interactive prompt at runtime.
+CLI flags take precedence over environment variables. Both `--workspace` and `--space` are optional — leave either unset and the extractor offers an interactive picker at runtime.
 
 ```bash
 export CLICKUP_WORKSPACE_NAME="Acme"
