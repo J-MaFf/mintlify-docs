@@ -175,6 +175,8 @@ python main.py --date-filter LastWeek --include-completed
 
 `kfj_task_extractor.py` is a standalone script that pulls all open tasks from a configured ClickUp list and writes them to a weekly Google Sheet. It creates a new worksheet tab named with the current date and renames the workbook title to match. Re‑running on the same day is idempotent — the existing tab's contents are replaced instead of duplicated.
 
+The ETA column is always filled: tasks with a ClickUp due date use it directly, and tasks **without** one get a calculated ETA from the shared pipeline used by `main.py` — a deterministic priority/status baseline, upgraded by a concurrent Claude CLI pass before sorting. Pass `--no-ai-eta` (or set `KFJ_AI_ETA=0`) to skip the Claude upgrade and keep the deterministic values.
+
 Use this script when you want an automated weekly snapshot of a single ClickUp list in a Google Sheet — for example, on a cron or scheduled task. For ad‑hoc Markdown/HTML/CSV exports, use `main.py` instead.
 
 ### One‑time setup
@@ -196,6 +198,7 @@ The script is configured entirely through environment variables (no hardcoded de
 | `KFJ_GOOGLE_SHEET_ID` | Yes (or `--sheet-id`, unless `--dry-run`) | Google Sheets workbook ID. The long ID in `https://docs.google.com/spreadsheets/d/<ID>/edit`. |
 | `KFJ_TAB_PREFIX` | No | Prefix for the dated worksheet tab. Defaults to `KFI Jefferson current tasks`. |
 | `KFJ_FALLBACK_BRANCH` | No | Branch label used when a task has no `Branch` custom-field value. |
+| `KFJ_AI_ETA` | No | Set to `0` to disable the Claude CLI ETA upgrade pass for due-date-less tasks and keep the deterministic priority/status ETAs. Equivalent to `--no-ai-eta`. |
 | `CLICKUP_API_KEY` | One of these | ClickUp API key, supplied directly. |
 | `GOOGLE_SHEETS_CREDENTIALS_JSON` | One of these | Google service-account JSON as a single-line string. Resolved in memory and never written to disk. |
 | `KFJ_CLICKUP_SECRET_REFERENCE` | Optional | `op://<vault>/<item>/credential` URI for the ClickUp key. Skipped when empty. |
@@ -225,6 +228,10 @@ When a `*_SECRET_REFERENCE` is empty the 1Password chain is skipped entirely and
   Override the date used in the tab name, formatted as `M/D/YY` (e.g. `6/10/26`). Useful for backfilling a past week.
 </ParamField>
 
+<ParamField path="--no-ai-eta" type="boolean">
+  Skip the Claude CLI ETA upgrade pass for tasks without a due date; their ETA column keeps the deterministic priority/status estimate. Use this for fully offline runs or to avoid consuming Claude subscription usage.
+</ParamField>
+
 ### Sheets sync examples
 
 ```bash
@@ -236,6 +243,9 @@ python kfj_task_extractor.py --dry-run
 
 # Backfill a specific date
 python kfj_task_extractor.py --date 6/10/26
+
+# Skip the Claude ETA pass — deterministic ETAs only
+python kfj_task_extractor.py --no-ai-eta
 
 # Inject secrets explicitly via op run
 op run --account my.1password.com --env-file=.env.kfj -- python kfj_task_extractor.py

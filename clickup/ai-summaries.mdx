@@ -46,7 +46,7 @@ python main.py --ai-summary --ai-source Both
 
 The `Claude` source shells out to the local [`claude` CLI](https://docs.claude.com/en/docs/claude-code) in headless print mode (`claude -p`) and supplies each task's fields over stdin. The CLI authenticates with your Claude Code OAuth, so each call bills your **Max or Pro subscription**. There is no Anthropic API key to manage and no Gemini-style free-tier rate limit.
 
-To use it, install Claude Code and sign in once with `claude login`. After that, the extractor finds the CLI on `PATH` and calls it automatically.
+To use it, install Claude Code and sign in once with `claude login`. After that, the extractor finds the CLI on `PATH` and calls it automatically. Before the first AI pass, the extractor runs a **pre-flight auth check** — if the CLI is installed but not logged in, it fails fast and falls back to non-AI content for the whole run instead of erroring once per task.
 
 <Tip>
   Even if `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` are set in your shell, the extractor scrubs them from the `claude` subprocess environment so summaries always bill the subscription, not the API.
@@ -72,9 +72,12 @@ The Claude path always degrades gracefully — your export completes even if Cla
 | Situation | Behaviour |
 |---|---|
 | `claude` CLI not found on `PATH` | Prints a one-time warning, falls back to the raw task content for the rest of the run. |
+| CLI installed but **not logged in** | Caught by the pre-flight auth check before the pass starts; the Claude path is disabled for the whole run and every task uses its raw content. |
 | CLI exits with a non-zero status or an unexpected error | Logs the error and uses the task's original content for that task. |
-| Call exceeds `CLAUDE_SUMMARY_TIMEOUT` | Logs a timeout and falls back to the raw content for that task. |
+| Call exceeds `CLAUDE_SUMMARY_TIMEOUT` | Logs a timeout and falls back to the raw content for that task. **Three consecutive timeouts** trip a kill-switch that disables the Claude path for the rest of the run. |
 | Subscription **usage limit** hit (rate-limit / "usage limit" message in stderr) | Disables further Claude calls for the rest of the run and short-circuits any queued summaries; remaining tasks use the raw content. |
+
+At the end of each AI pass, the extractor reports how many summaries (or ETAs) were actually **AI-generated versus fallback**, so a run that silently degraded is visible in the output rather than looking like a success.
 
 ## Gemini
 
@@ -91,7 +94,7 @@ The extractor detects rate limits via HTTP `429` responses, `RESOURCE_EXHAUSTED`
 
 ## Concurrent generation
 
-Summaries are generated in a single bounded-concurrency pass **after** all tasks are gathered, not inline during task processing. This typically cuts wall-clock time on large exports by ~3×. Output order is preserved, and once a provider hits a usage or rate limit, queued calls short-circuit instead of waiting.
+Summaries are generated in a single bounded-concurrency pass **after** all tasks are gathered, not inline during task processing. This typically cuts wall-clock time on large exports by ~3×. Output order is preserved, and once a provider hits a usage or rate limit, queued calls short-circuit instead of waiting. Pressing **Ctrl+C** during a pass cancels the queued calls immediately rather than letting them drain first.
 
 <ParamField path="AI_SUMMARY_CONCURRENCY" type="integer" default="4">
   Maximum number of summaries (and ETAs) generated in parallel. Clamped to the task count. Applies to both Claude and Gemini.
@@ -122,6 +125,10 @@ The extractor first assigns every task a deterministic baseline ETA from its pri
 
 <Note>
   The `ClickUp` source uses the deterministic ETA because ClickUp itself does not expose an ETA custom field to read.
+</Note>
+
+<Note>
+  The "task has an empty ClickUp `Summary` field" notice only appears when the source is `ClickUp` or `Both` — the sources that actually read that field. `Claude` and `Gemini` runs no longer emit it.
 </Note>
 
 ## Example commands
