@@ -1,23 +1,21 @@
 ---
 title: "Install Apps on Windows Using the WinGet Setup Script"
 sidebarTitle: "Installation"
-description: "Run a single PowerShell command to deploy the full curated app list on any Windows 10 21H2 or later machine. No manual steps required."
+description: "Run a single PowerShell command to deploy the full curated app list on any Windows 10 21H2 or later machine. Fully unattended — no prompts, works from Windows PowerShell 5.1."
 ---
 
-Getting started takes one command. Paste the one-liner into an **elevated** PowerShell or Windows Terminal window and the script downloads, verifies your environment, and installs every app in the curated list. See the note below for how administrator privileges are handled depending on whether you run the one-liner or a locally cloned copy.
+Getting started takes one command. Paste the one-liner into any PowerShell window — `pwsh` or the built-in Windows PowerShell 5.1 — and the script downloads, verifies your environment, and installs every app in the curated list. The installer never asks a yes/no question on any path: elevation, the PowerShell 7 bootstrap, and low disk space all proceed without prompting, so you can run it and walk away.
 
 <Note>
-  **When running from a cloned repository (Option B):** the script automatically detects whether it is running with administrator privileges. If it is not, it prompts you for elevation and relaunches itself in an elevated session, preferring Windows Terminal when available.
-
-  **When running via the one-liner (Option A):** auto-elevation is not possible because the script has no saved path to relaunch from. If your session is not already elevated, the script will exit with an error and ask you to re-run the command in an elevated PowerShell or Windows Terminal window.
+  **PowerShell 7 bootstrap:** the installer's logic runs on PowerShell 7+, but it bootstraps itself from Windows PowerShell 5.1. Started from 5.1, it finds an existing `pwsh` (or installs it via winget), then relaunches itself under `pwsh` in the same window with your switches forwarded. One-liner runs have no script file on disk to relaunch, so the bootstrap re-downloads the installer to a temp file and runs that — which also makes the one-liner self-elevatable from a non-admin session. A `-WhatIf` run never installs anything; without PowerShell 7 present it just previews the bootstrap.
 </Note>
 
 ## Prerequisites
 
 Before running the script, confirm your machine meets these requirements:
 
-- **Windows 10 21H2 (build 19044) or later** — Windows 11 is fully supported.
-- **At least 50 GB of free disk space** on the C: drive — the script warns you and asks whether to continue if space is low.
+- **Windows 10 21H2 (build 19044) or later** — Windows 11 is detected and fully supported.
+- **At least 50 GB of free disk space** on the C: drive — recommended, not required. Low space produces a warning and the install proceeds.
 - **Internet access** — the script must reach `cdn.winget.microsoft.com` on port 443. Installation is blocked if this host is unreachable.
 - **PowerShell execution policy** — the one-liner sets `Unrestricted` for the current process only; nothing is changed system-wide.
 
@@ -29,13 +27,13 @@ Before running the script, confirm your machine meets these requirements:
   </Step>
 
   <Step title="Option A — Run via one-liner (recommended)">
-    Open an **elevated** PowerShell or Windows Terminal window (right-click → Run as administrator) and paste:
+    From any PowerShell prompt — `pwsh` or Windows PowerShell 5.1, elevated or not — paste:
 
     ```powershell
-    Set-ExecutionPolicy Unrestricted -Scope Process; irm "https://raw.githubusercontent.com/J-MaFf/winget-app-setup/refs/heads/main/winget-app-install.ps1" | iex
+    Set-ExecutionPolicy Unrestricted -Scope Process -Force; irm "https://raw.githubusercontent.com/J-MaFf/winget-app-setup/refs/heads/main/winget-app-install.ps1" | iex
     ```
 
-    The one-liner sets the execution policy for the current process only, downloads the script from GitHub, and immediately runs it. No files are saved to disk beyond what winget installs. Because the script is streamed directly into PowerShell, it cannot relaunch itself as an administrator — you must start the session elevated.
+    The one-liner sets the execution policy for the current process only, downloads the script from GitHub, and immediately runs it. If the session is not elevated, the script relaunches itself elevated (via the bootstrap's re-downloaded temp copy when needed) — you only need to approve the UAC dialog.
   </Step>
 
   <Step title="Option B — Run from a cloned repository">
@@ -44,17 +42,17 @@ Before running the script, confirm your machine meets these requirements:
     ```powershell
     git clone https://github.com/J-MaFf/winget-app-setup.git
     cd winget-app-setup
-    powershell -ExecutionPolicy Unrestricted -File .\winget-app-install.ps1
+    pwsh -ExecutionPolicy Unrestricted -File .\winget-app-install.ps1
     ```
 
-    Running locally enables additional features such as the `-EnableScheduledUpdates` workflow, which copies the helper script into `%APPDATA%` for use by the scheduled task.
+    Starting from a file relaunches the same file for elevation and the PowerShell 7 bootstrap, with your switches forwarded.
   </Step>
 
   <Step title="Watch the pre-flight checks run">
     The script validates three things before touching any apps:
 
-    - **OS version** — warns if your build is older than Windows 10 21H2.
-    - **Disk space** — warns and asks for confirmation if C: has less than 50 GB free.
+    - **OS version** — warns if your build is older than Windows 10 21H2; Windows 11 is recognised.
+    - **Disk space** — warns if C: has less than 50 GB free, then proceeds (no prompt).
     - **Network** — blocks and exits if `cdn.winget.microsoft.com` is unreachable.
 
     All three results are displayed in a colour-coded table before installation begins.
@@ -63,32 +61,53 @@ Before running the script, confirm your machine meets these requirements:
   <Step title="Installation proceeds automatically">
     For each app in the curated list the script:
 
-    1. Checks whether the app is already installed — skips it if so.
-    2. Runs `winget install` with `--accept-source-agreements` and `--accept-package-agreements`.
-    3. Verifies the install succeeded by re-querying `winget list`.
-    4. Retries once automatically if the first attempt fails.
+    1. Evaluates the app's applicability condition (e.g. Dell Command Update on non-Dell hardware is skipped as `not applicable`).
+    2. Checks whether the app is already installed — skips it if so.
+    3. Runs `winget install` with `--accept-source-agreements` and `--accept-package-agreements`.
+    4. Verifies the install succeeded by re-querying `winget list`.
+    5. Retries automatically if the attempt fails, including transient file-lock errors when launching winget.
 
     Progress is printed to the console in real time.
   </Step>
 
-  <Step title="Windows Terminal is configured">
+  <Step title="Windows Terminal and automatic updates are configured">
     After all apps are installed, the script:
 
     - Sets **PowerShell 7** as the default profile in your Windows Terminal `settings.json`.
-    - Registers **Windows Terminal** as the default terminal application in the registry under `HKCU:\Console\%%Startup`.
+    - Registers **Windows Terminal** as the default terminal application in the registry.
+    - Installs **[Winget-AutoUpdate (WAU)](/winget/scheduled-updates)** so installed apps stay current on a weekly schedule.
   </Step>
 
-  <Step title="Review the summary">
-    A formatted table shows every app grouped by status: **Installed**, **Skipped**, **Failed**, and **Updated**. In an interactive session you can view the same data in an `Out-GridView` window when prompted.
+  <Step title="Review the summary and log">
+    A formatted table shows every app grouped by status: **Installed**, **Skipped**, **Failed**, and **Updated**. In an interactive session you can also view the same data in an `Out-GridView` window. A full transcript of the run is written to `%ProgramData%\winget-app-setup\logs\install-<yyyyMMdd-HHmmss>.log` — the path is printed at startup and repeated with the final summary.
   </Step>
 </Steps>
+
+## Unattended runs
+
+Pass `-NonInteractive` for RMM, CI, or scheduled-task use to suppress the two interactive-only extras — the summary grid-view window and the final "press any key to exit":
+
+```powershell
+pwsh -ExecutionPolicy Unrestricted -File .\winget-app-install.ps1 -NonInteractive
+```
+
+Non-interactive mode is also auto-detected when the session is non-interactive (e.g. `pwsh -NonInteractive`, services, scheduled tasks) or stdin is redirected.
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success — all apps installed or already present |
+| 1 | One or more apps failed to install (also: the PowerShell 7 bootstrap could not provision `pwsh`, pre-flight system checks failed, or elevation unavailable under remote execution) |
+| 2 | Winget is unavailable and could not be installed |
+| 3 | App-definition validation failed, or no valid app definitions remain |
 
 ## Uninstalling
 
 To remove every app in the curated list, run the companion uninstall script from the cloned repository:
 
 ```powershell
-powershell -ExecutionPolicy Unrestricted -File .\winget-app-uninstall.ps1
+pwsh -ExecutionPolicy Unrestricted -File .\winget-app-uninstall.ps1
 ```
 
-The uninstall script also auto-elevates, checks whether each app is present before attempting removal, and prints a summary when complete. Apps that were not installed are silently skipped.
+The uninstall script also auto-elevates, checks whether each app is present before attempting removal, and prints a summary when complete. Apps that were not installed are silently skipped. It also removes Winget-AutoUpdate and any legacy scheduled-update task left by older versions of the installer.

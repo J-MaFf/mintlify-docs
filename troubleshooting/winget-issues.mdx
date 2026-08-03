@@ -4,22 +4,15 @@ sidebarTitle: "WinGet Issues"
 description: "Diagnose and resolve the most common winget-app-setup errors, including source corruption, pre-flight failures, elevation issues, and missing modules."
 ---
 
-The `winget-app-install.ps1` script is designed to be self-healing: it repairs corrupt sources, auto-installs missing modules, retries failed installs, and elevates itself when needed. Most problems resolve on their own. When they do not, the sections below explain exactly what is happening and how to fix it.
+The `winget-app-install.ps1` script is designed to be self-healing: it repairs corrupt sources, auto-installs missing modules, retries failed installs, and elevates itself when needed — all without prompting. Most problems resolve on their own. When they do not, the sections below explain exactly what is happening and how to fix it.
 
 <Accordion title="Script fails with 'Access Denied' or does not start">
 
-The script requires **Administrator privileges** to install packages system-wide, add entries to the system PATH, and register scheduled tasks.
+The script requires **Administrator privileges** to install packages system-wide.
 
-**What the script does automatically:** When you run the script without elevation, it detects the non-elevated context and relaunches itself in an elevated session. If Windows Terminal is installed, it opens in a new elevated Windows Terminal tab. Otherwise it falls back to a standard elevated PowerShell window. You will see a UAC prompt during the relaunch.
+**What the script does automatically:** When you run the script without elevation, it detects the non-elevated context and relaunches itself in an elevated session without asking. If Windows Terminal is installed, it opens in a new elevated Windows Terminal tab. Otherwise it falls back to a standard elevated PowerShell window. You will see a UAC consent dialog during the relaunch. This works for one-liner (`irm | iex`) runs too: the script re-downloads itself to a temp file so there is a local copy to relaunch.
 
-**If auto-elevation fails** (for example, when running via `Invoke-Expression` from a remote URL), auto-elevation is not available because there is no local script file to relaunch. Open an elevated PowerShell window manually and run the command again:
-
-```powershell
-# Open an elevated PowerShell or Windows Terminal, then:
-.\winget-app-install.ps1
-```
-
-**If the UAC prompt is suppressed** by Group Policy, contact your system administrator to allow standard users to consent to elevation, or ask an administrator to run the script directly.
+**If the UAC prompt is suppressed** by Group Policy, contact your system administrator to allow standard users to consent to elevation, or ask an administrator to run the script directly. Under remote execution where elevation is unavailable, the script exits with code 1 rather than hanging on a dialog nobody can see.
 
 </Accordion>
 
@@ -56,22 +49,20 @@ Before installing anything, the script validates three system requirements. A fa
 
 **OS Version check (warning, non-blocking)**
 
-The script checks that your Windows build is 19044 or higher (Windows 10 21H2). Older builds display a warning but do not block the install. Upgrade Windows to ensure full winget compatibility:
+The script checks that your Windows build is 19044 or higher (Windows 10 21H2); Windows 11 builds are recognised as supported. Older builds display a warning but do not block the install. Upgrade Windows to ensure full winget compatibility:
 
 ```powershell
 # Check your current build:
 [System.Environment]::OSVersion.Version.Build
 ```
 
-**Disk space check (warning, prompts to continue)**
+**Disk space check (warning, non-blocking)**
 
-The script requires at least **50 GB free on the C: drive**. If less is available, it prompts you to confirm before continuing. To check free space:
+The script recommends at least **50 GB free on the C: drive**. If less is available — or free space cannot be measured — it warns and proceeds; nothing prompts. To check free space:
 
 ```powershell
 Get-PSDrive -Name C | Select-Object -Property Used, Free
 ```
-
-Free up space or confirm the prompt to continue anyway.
 
 **Network check (blocking)**
 
@@ -152,40 +143,33 @@ The script functions correctly without `Microsoft.WinGet.Client` — it uses `wi
 
 </Accordion>
 
-<Accordion title="Scheduled update task not running">
+<Accordion title="Automatic updates (Winget-AutoUpdate) not running">
 
-The script can optionally enable a Windows Scheduled Task (`WingetAppSetup-ScheduledUpdates`) that checks for and installs package updates on a recurring schedule. If the task appears in Task Scheduler but does not run, check the following.
+Ongoing updates are handled by [Winget-AutoUpdate (WAU)](https://github.com/Romanitho/Winget-AutoUpdate), which the install script sets up automatically — see [Automatic Updates](/winget/scheduled-updates). If installed apps are not staying current, check the WAU scheduled task.
 
 **Task details:**
 
 | Property | Value |
 |----------|-------|
-| Task name | `WingetAppSetup-ScheduledUpdates` |
-| Task path | `\winget-app-setup\` |
-| Default schedule | Every Sunday at 2:00 AM |
-| Helper script location | `%APPDATA%\winget-app-setup\Update-InstalledApps.ps1` |
+| Task name | `Winget-AutoUpdate` |
+| Task path | `\WAU\` |
+| Schedule | Weekly at 2:00 AM |
+| Runs as | SYSTEM (machine-wide), plus a user-context pass |
 
-**Check task status in Task Scheduler:**
-
-```powershell
-Get-ScheduledTask -TaskName "WingetAppSetup-ScheduledUpdates" -TaskPath "\winget-app-setup\"
-```
-
-**Common reasons the task does not run:**
-- The machine is asleep at the scheduled time. The task is configured with **Start when available**, so it will run at the next opportunity after the machine wakes.
-- The task was registered under a different user account. Open Task Scheduler (`taskschd.msc`), navigate to `\winget-app-setup\`, and confirm the task's principal matches your current user.
-- The helper script was moved or deleted. Re-run the install script to restore it to `%APPDATA%\winget-app-setup\`.
-
-**Re-enable scheduled updates:**
+**Check task status:**
 
 ```powershell
-.\winget-app-install.ps1 -EnableScheduledUpdates -UpdateFrequency Weekly
+Get-ScheduledTask -TaskName "Winget-AutoUpdate" -TaskPath "\WAU\"
+Get-ScheduledTaskInfo -TaskName "Winget-AutoUpdate" -TaskPath "\WAU\"
 ```
 
-**Disable scheduled updates:**
+**Common reasons updates are not applying:**
+- The machine is off or asleep at the scheduled time — the task runs at the next opportunity.
+- WAU is not installed (e.g. it was removed manually). Re-run `winget-app-install.ps1` — it reinstalls the pinned WAU version whenever it is missing or outdated.
+- A specific app is excluded by WAU's include/exclude lists — see the [WAU documentation](https://github.com/Romanitho/Winget-AutoUpdate) for its configuration and log locations.
 
-```powershell
-.\winget-app-install.ps1 -DisableScheduledUpdates
-```
+<Note>
+Older versions of the installer used a per-user task named `WingetAppSetup-ScheduledUpdates` with `-EnableScheduledUpdates`/`-DisableScheduledUpdates` flags. That feature was removed; the flags no longer exist, and the uninstall script cleans up any legacy task it finds.
+</Note>
 
 </Accordion>

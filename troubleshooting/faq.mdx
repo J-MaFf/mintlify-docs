@@ -188,15 +188,14 @@ This page collects answers to questions that come up frequently across all of J-
 
   | Tool | Log Location |
   | --- | --- |
-  | `winget-app-install.ps1` | `%APPDATA%\winget-app-setup\` |
-  | Scheduled update helper | `%APPDATA%\winget-app-setup\update-checks\` |
-  | Update configuration | `%APPDATA%\winget-app-setup\update-config.json` |
+  | `winget-app-install.ps1` | `%ProgramData%\winget-app-setup\logs\install-<yyyyMMdd-HHmmss>.log` |
+  | Winget-AutoUpdate (WAU) | WAU's own install location — see the [WAU documentation](https://github.com/Romanitho/Winget-AutoUpdate) |
   | gitconfig auto-update | Logged to the platform job output (launchd / Task Scheduler / cron) |
 
   To view the winget-app-setup log directory:
 
   ```powershell
-  explorer "$env:APPDATA\winget-app-setup"
+  explorer "$env:ProgramData\winget-app-setup\logs"
   ```
 
   For the gitconfig auto-update job on Windows, view Task Scheduler history:
