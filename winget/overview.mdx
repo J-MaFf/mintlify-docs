@@ -1,52 +1,66 @@
 ---
 title: "WinGet App Setup: Automated App Installation for Windows"
 sidebarTitle: "Overview"
-description: "Automate Windows app deployment with a single PowerShell command. WinGet App Setup installs and maintains a curated set of essential business applications."
+description: "Automate Windows app deployment with a single PowerShell command. WinGet App Setup installs a curated set of essential business applications, fully unattended, and hands ongoing updates to Winget-AutoUpdate."
 ---
 
-WinGet App Setup is a PowerShell script that installs, updates, and manages a curated collection of essential Windows applications using the Windows Package Manager (winget). Run a single command and the script handles everything — elevating privileges, trusting sources, checking what's already installed, and silently deploying each app in the list.
+WinGet App Setup is a PowerShell script that installs and manages a curated collection of essential Windows applications using the Windows Package Manager (winget). Run a single command and the script handles everything — elevating privileges, trusting sources, checking what's already installed, and silently deploying each app in the list. The installer never asks a yes/no question on any path, so the one-liner can be run and left alone.
 
 ## Curated application list
 
 The script installs the following ten applications. Each entry maps to a winget package ID, ensuring exact, reproducible installs every time.
 
-| Application | Winget ID |
-|---|---|
-| 7-Zip | `7zip.7zip` |
-| TightVNC | `GlavSoft.TightVNC` |
-| Adobe Acrobat Reader 64-bit | `Adobe.Acrobat.Reader.64-bit` |
-| Google Chrome | `Google.Chrome` |
-| Google Drive | `Google.GoogleDrive` |
-| Git | `Git.Git` |
-| Bulk Crap Uninstaller | `Klocman.BulkCrapUninstaller` |
-| Dell Command Update (Universal) | `Dell.CommandUpdate.Universal` |
-| PowerShell 7+ | `Microsoft.PowerShell` |
-| Windows Terminal | `Microsoft.WindowsTerminal` |
+| Application | Winget ID | Notes |
+|---|---|---|
+| 7-Zip | `7zip.7zip` | |
+| TightVNC | `GlavSoft.TightVNC` | |
+| Adobe Acrobat Reader 64-bit | `Adobe.Acrobat.Reader.64-bit` | |
+| Google Chrome | `Google.Chrome` | |
+| Google Drive | `Google.GoogleDrive` | |
+| Git | `Git.Git` | |
+| Bulk Crap Uninstaller | `Klocman.BulkCrapUninstaller` | |
+| Dell Command Update (Universal) | `Dell.CommandUpdate.Universal` | Dell hardware only — see below |
+| PowerShell 7+ | `Microsoft.PowerShell` | Always-latest install strategy |
+| Windows Terminal | `Microsoft.WindowsTerminal` | |
+
+### Conditional apps
+
+Catalog entries may declare an applicability **condition** that is evaluated before any winget call. An app whose condition is falsy on the current machine is reported as `Skipping: <id> (not applicable: <reason>)` and counted as Skipped in the summary instead of being pointlessly installed. Dell Command Update is gated this way: it installs only when the machine reports a Dell manufacturer. A condition that throws fails open — a warning, then a normal install — so a broken probe can never silently drop an app.
 
 ## How it works
 
 <CardGroup cols={2}>
-  <Card title="Auto-elevation" icon="shield-check">
-    If you launch the script without administrator privileges, it automatically prompts for elevation and relaunches in an elevated session — preferring Windows Terminal when available.
+  <Card title="Runs from PowerShell 5.1" icon="terminal">
+    The installer's logic requires PowerShell 7, but you can start it from the built-in Windows PowerShell 5.1 — the only shell on a fresh machine. It finds PowerShell 7 (or installs it via winget, no consent prompt), then relaunches itself under `pwsh` in the same window with your switches forwarded.
+  </Card>
+  <Card title="Auto-elevation, no prompts" icon="shield-check">
+    If you launch the script without administrator privileges, it relaunches in an elevated session without asking — preferring Windows Terminal when available. You will see the standard UAC consent dialog during the relaunch.
   </Card>
   <Card title="Smart install" icon="circle-check">
     Before installing each app, the script checks whether it is already present. Apps that are already installed are skipped, so re-running the script is always safe.
   </Card>
   <Card title="Retry logic" icon="rotate">
-    If an installation fails on the first attempt, the script automatically retries it once before marking it as failed, reducing transient error noise on slower networks.
-  </Card>
-  <Card title="Windows Terminal config" icon="terminal">
-    After installation, the script sets PowerShell 7 as the default Windows Terminal profile and registers Windows Terminal as the default terminal application via the registry.
+    If an installation fails on the first attempt, the script automatically retries it before marking it as failed — including retrying the winget launch itself on transient file-lock errors.
   </Card>
 </CardGroup>
 
 ## Source verification
 
-Before any installation begins, the script verifies that the `winget` and `msstore` sources are trusted and functional. If a source is missing or its data is corrupted, the script attempts an automatic repair by running `winget source reset` and re-registering the source package from the Microsoft CDN.
+Before any installation begins, the script verifies that the `winget` source is trusted and functional. If the source is missing or its data is corrupted, the script attempts an automatic repair by running `winget source reset` and re-registering the source package from the Microsoft CDN.
 
-## Post-install summary
+## Windows Terminal configuration
 
-When the run completes, the script displays a formatted summary table listing every app by status: **Installed**, **Skipped** (already present), **Failed**, and **Updated**. In interactive sessions you can also opt in to viewing the summary in an `Out-GridView` window.
+After installation, the script sets PowerShell 7 as the default Windows Terminal profile and registers Windows Terminal as the default terminal application via the registry.
+
+## Post-install summary, logs, and exit codes
+
+When the run completes, the script displays a formatted summary table listing every app by status: **Installed**, **Skipped** (already present or not applicable), **Failed**, and **Updated**. In interactive sessions you can also view the summary in an `Out-GridView` window; pass `-NonInteractive` to suppress it.
+
+Every run writes a full transcript to `%ProgramData%\winget-app-setup\logs\install-<yyyyMMdd-HHmmss>.log` (dry runs get a `-whatif` suffix), and the script exits with a distinct code — `0` success, `1` one or more apps failed (or pre-flight/bootstrap/elevation failure), `2` winget unavailable, `3` app-definition validation failed — so automated runs can branch on the result.
+
+## Automatic updates via Winget-AutoUpdate
+
+Ongoing updates are no longer handled by the script itself. The installer sets up [Winget-AutoUpdate (WAU)](https://github.com/Romanitho/Winget-AutoUpdate) — a pinned, SHA256-verified version — which updates installed apps machine-wide on a weekly schedule. See [Automatic Updates](/winget/scheduled-updates) for details.
 
 ## Next steps
 
@@ -55,9 +69,9 @@ When the run completes, the script displays a formatted summary table listing ev
     Run the one-liner or clone the repo and execute the script locally.
   </Card>
   <Card title="Parameters" icon="sliders" href="/winget/parameters">
-    Explore dry-run mode, update options, and all available flags.
+    Dry-run mode, pre-flight bypass, and non-interactive mode.
   </Card>
-  <Card title="Scheduled Updates" icon="calendar" href="/winget/scheduled-updates">
-    Keep every installed app current with an automated weekly or daily task.
+  <Card title="Automatic Updates" icon="calendar" href="/winget/scheduled-updates">
+    How Winget-AutoUpdate keeps every installed app current.
   </Card>
 </CardGroup>
