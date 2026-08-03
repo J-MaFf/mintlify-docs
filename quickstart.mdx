@@ -31,7 +31,7 @@ The quickest way into J-MaFf's toolkit is the `winget-app-install.ps1` script. I
     `Set-ExecutionPolicy Unrestricted -Scope Process` relaxes the execution policy for the current process only — it does not change your system-wide policy. `irm` downloads the script, and `iex` executes it immediately.
 
     <Tip>
-      Run this same command any time you want to update the installed apps. The script detects what's already installed and only upgrades packages that have newer versions available.
+      Re-running the command is always safe — the script skips apps that are already installed. Ongoing updates are handled automatically by [Winget-AutoUpdate](/winget/scheduled-updates), which the installer sets up for you.
     </Tip>
   </Step>
   <Step title="Watch the installer run">
