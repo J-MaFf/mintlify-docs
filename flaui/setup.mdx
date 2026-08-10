@@ -1,10 +1,10 @@
 ---
 title: "Set Up the FlaUI PowerShell Test Harness on Windows"
 sidebarTitle: "Setup"
-description: "Install FlaUI DLLs via NuGet, configure Pester 5, and run the built-in example test to confirm your Windows test environment is ready."
+description: "Install FlaUI DLLs via NuGet, configure Pester 6, and run the built-in example test to confirm your Windows test environment is ready."
 ---
 
-Before you can write or run GUI tests, you need a Windows machine with the right PowerShell version, the FlaUI .NET libraries copied into the repo, and Pester 5 installed. The steps below walk you through everything from cloning the repo to confirming the example test passes.
+Before you can write or run GUI tests, you need a Windows machine with the right PowerShell version, the FlaUI .NET libraries copied into the repo, and Pester 6 installed. The steps below walk you through everything from cloning the repo to confirming the example test passes.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ All of the following must be present on the Windows machine where tests will run
 
 - **Windows 10 or 11** — FlaUI requires the UI Automation APIs that ship with these versions.
 - **PowerShell 7+** (`pwsh`) — the harness uses `pwsh.exe` explicitly when launching scripts under test.
-- **Pester 5** — version 5.0 or later; the configuration API used in `Run-Suite.ps1` is not compatible with Pester 4.
+- **Pester 6** — `6.0.0` up to (but not including) `7.0.0`; CI pins the exact range with `-MinimumVersion 6.0.0 -MaximumVersion 6.999.999`. The configuration API used in `Run-Suite.ps1` is not compatible with Pester 4, and an unpinned install can silently resolve to whatever version is highest on the machine.
 - **`nuget.exe`** — available from [nuget.org/downloads](https://www.nuget.org/downloads) or via Chocolatey. Used to restore the FlaUI NuGet package.
 
 <Note>
@@ -71,11 +71,11 @@ All of the following must be present on the Windows machine where tests will run
     </Note>
   </Step>
 
-  <Step title="Install Pester 5">
-    If Pester 5 is not already installed, install it from the PowerShell Gallery.
+  <Step title="Install Pester 6">
+    If Pester 6 is not already installed, install it from the PowerShell Gallery, pinned to the 6.x range.
 
     ```powershell
-    Install-Module Pester -MinimumVersion 5.0 -Scope CurrentUser -Force
+    Install-Module Pester -MinimumVersion 6.0.0 -MaximumVersion 6.999.999 -Scope CurrentUser -Force
     ```
 
     Confirm the installed version:

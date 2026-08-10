@@ -1,14 +1,14 @@
 ---
-title: "Write GUI Automation Tests with FlaUI and Pester 5"
+title: "Write GUI Automation Tests with FlaUI and Pester 6"
 sidebarTitle: "Writing Tests"
-description: "Learn the UiTestHelpers API, standard Pester 5 test structure, and how to capture failure screenshots when a GUI automation test fails."
+description: "Learn the UiTestHelpers API, standard Pester 6 test structure, and how to capture failure screenshots when a GUI automation test fails."
 ---
 
 Every FlaUI test in this harness follows the same three-part pattern: launch the script under test, interact with its controls, and assert that the result is correct — then close the window whether the test passed or failed. The `UiTestHelpers` module provides thin, focused wrappers over FlaUI so your test code stays readable and scoped to one window at a time.
 
 ## Standard test structure
 
-Tests live in Pester 5 `.Tests.ps1` files. Import `UiTestHelpers.psm1` in a `BeforeAll` block at the top of the file, then use `Describe` and `It` blocks as normal. Each `It` block launches a fresh instance of the script under test and closes it in a `finally` block so a crash in one test never bleeds into the next.
+Tests live in Pester 6 `.Tests.ps1` files. Import `UiTestHelpers.psm1` in a `BeforeAll` block at the top of the file, then use `Describe` and `It` blocks as normal. Each `It` block launches a fresh instance of the script under test and closes it in a `finally` block so a crash in one test never bleeds into the next.
 
 ```powershell
 BeforeAll {
