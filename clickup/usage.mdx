@@ -205,6 +205,7 @@ The script is configured entirely through environment variables (no hardcoded de
 | `KFJ_GOOGLE_SA_SECRET_REFERENCE` | Optional | `op://<vault>/<item>/credential` URI for the Google service-account JSON. Skipped when empty. |
 | `KFJ_OP_ACCOUNT_NAME` | Optional | 1Password account *display name* (as shown in the desktop app) used by the SDK desktop auth. |
 | `KFJ_OP_ACCOUNT_URL` | Optional | 1Password account URL used by the `op` CLI. Defaults to `my.1password.com`. |
+| `OP_SERVICE_ACCOUNT_TOKEN` | Optional | 1Password service-account token for fully headless runs (machine locked or logged out). Set via the OS, **never** in `.env.kfj`. See [Unattended / headless scheduled runs](#unattended-headless-scheduled-runs) below. |
 
 The script validates that a list ID is present, and a sheet ID is present unless you pass `--dry-run`. Missing values trigger a clear error pointing at `.env.kfj.example`.
 
@@ -252,6 +253,35 @@ op run --account my.1password.com --env-file=.env.kfj -- python kfj_task_extract
 ```
 
 The Google service account JSON credential is resolved in memory and never written to disk. The script looks for it in the `GOOGLE_SHEETS_CREDENTIALS_JSON` environment variable first, then falls back to the 1Password SDK and CLI.
+
+### Unattended / headless scheduled runs
+
+By default the weekly Task Scheduler task must run **while you are logged in** with the 1Password desktop app unlocked (DesktopAuth). To make the sync fully unattended — machine locked or logged out — opt in to a 1Password **service-account token**:
+
+<Steps>
+  <Step title="Create a service account">
+    In 1Password, create a service account with **read** access to the vault that holds the ClickUp key and the Google service-account JSON, and copy its token.
+  </Step>
+  <Step title="Store the token as a user-scoped environment variable">
+    On the machine that runs the task, open a terminal as the account the task runs as and set:
+
+    ```powershell
+    setx OP_SERVICE_ACCOUNT_TOKEN "ops_..."
+    ```
+
+    The token lives only in that user's registry profile. **Never** put it in `.env.kfj`, any file in the repo, or the task's command-line arguments (task definitions are readable as XML).
+  </Step>
+  <Step title="Switch the task to run when logged out">
+    In Task Scheduler, edit the task ("KFJ Weekly ClickUp Sheet Sync") and select **"Run whether user is logged on or not"**. Leave **"Do not store password"** unchecked — without the stored password the task runs under a limited (S4U) logon that may not load the user's registry environment where the `setx`-stored token lives.
+  </Step>
+  <Step title="Verify headlessly">
+    With the 1Password app closed or locked, `python kfj_task_extractor.py --dry-run` should still resolve both secrets and print the rows.
+  </Step>
+</Steps>
+
+<Note>
+  For `kfj_task_extractor.py` specifically, the service-account token is tried **before** DesktopAuth (opposite of the main extractor's [authentication order](/clickup/authentication)) — a locked machine's DesktopAuth attempt would only stall. When `OP_SERVICE_ACCOUNT_TOKEN` is unset, nothing changes and DesktopAuth remains the default interactive path.
+</Note>
 
 ## Common command combinations
 
