@@ -175,6 +175,8 @@ python main.py --date-filter LastWeek --include-completed
 
 `kfj_task_extractor.py` is a standalone script that pulls all open tasks from a configured ClickUp list and writes them to a weekly Google Sheet. It creates a new worksheet tab named with the current date and renames the workbook title to match. Re‑running on the same day is idempotent — the existing tab's contents are replaced instead of duplicated.
 
+Each row has the columns `Task | Company | Branch | Work Location | Priority | Status | ETA`. **Work Location** is sourced from a ClickUp dropdown custom field of the same name on the configured list, resolved the same way as **Branch**; unlike Branch it has no fallback value, so the cell is left blank when the field is absent or unset on a task.
+
 The ETA column is always filled: tasks with a ClickUp due date use it directly, and tasks **without** one get a calculated ETA from the shared pipeline used by `main.py` — a deterministic priority/status baseline, upgraded by a concurrent Claude CLI pass before sorting. Pass `--no-ai-eta` (or set `KFJ_AI_ETA=0`) to skip the Claude upgrade and keep the deterministic values.
 
 Use this script when you want an automated weekly snapshot of a single ClickUp list in a Google Sheet — for example, on a cron or scheduled task. For ad‑hoc Markdown/HTML/CSV exports, use `main.py` instead.
