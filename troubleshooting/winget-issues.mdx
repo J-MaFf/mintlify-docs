@@ -43,6 +43,19 @@ If the search returns results without error, the source is healthy and you can r
 
 </Accordion>
 
+<Accordion title="Winget repair fails with a downgrade rejection — error code 0x80073D06">
+
+Error `0x80073D06` (`ERROR_INSTALL_PACKAGE_DOWNGRADE`) means AppX rejected a framework dependency (Microsoft.WindowsAppRuntime, VCLibs, or UI.Xaml) because the machine already has a **newer** build than the one the WinGet release pins — routine on a managed fleet where Teams, Phone Link, or an MDM push updates one of those independently. `-Force` cannot fix this; it only makes the repair more insistent about deploying the older pinned build, so it fails the same way every time.
+
+**What the script does automatically:**
+1. Before attempting any repair, it tries registering the App Installer (winget) MSIX package that is already staged on the machine for the current account — no download, no framework dependency deployment, so the downgrade rejection cannot occur. This is the common case when you elevated as a different admin account than the interactive user, since App Installer registration is per-user.
+2. If that does not resolve it, the script runs `Repair-WinGetPackageManager -Latest` unforced, then `-Force` if the unforced attempt fails for a different reason.
+3. If a `-Force` attempt is rejected with `0x80073D06`, the script stops immediately instead of retrying — this is a WinGet packaging conflict, not a fault on your machine, and retrying only burns another multi-hundred-megabyte download before failing the same way.
+
+**If you hit this error**, winget is likely already functional for whichever account has it registered — try running the install script as (or elevating from) that account instead of a separate admin account. If no account on the machine has a working winget, downgrade the newer framework package manually before retrying, or wait for a WinGet release that pins a matching or newer version.
+
+</Accordion>
+
 <Accordion title="Pre-flight check failures">
 
 Before installing anything, the script validates three system requirements. A failure in any of them stops or warns the installation.
