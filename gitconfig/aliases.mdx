@@ -202,7 +202,7 @@ Use these aliases to manage the configuration itself.
 </Note>
 
 <Note>
-  `git skill status` and `git skill sync` print two different all-clear messages, and the distinction matters: `[OK] Nothing to publish from this machine` means the skills repo's working tree is fully clean. `[OK] No skill changes to publish` means every *skill* is published, but the repo-wide check still found uncommitted changes outside skill folders — list up to 5 of them and note that they block `git update` from syncing the repo as long as they're present.
+  `git skill status` and `git skill sync` print two different all-clear messages, and the distinction matters: `[OK] Nothing to publish from this machine` means the skills repo's working tree is fully clean. `[OK] No skill changes to publish` means every *skill* is published, but the repo-wide check still found uncommitted changes outside skill folders — up to 5 of them are listed, since those changes block `git update` from syncing the repo as long as they're present.
 </Note>
 
 **Examples:**
