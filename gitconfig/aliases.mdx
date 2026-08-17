@@ -180,7 +180,7 @@ Use these aliases to manage the configuration itself.
 | `git skill` | Dispatcher for managing `~/.claude/skills`. Running it with no argument (or `git skill help`) prints the usage banner listing every subcommand; unknown subcommands exit with status 1. |
 | `git skill list` | Print a rich table of installed Claude skills with each skill's name, one-line description from its `SKILL.md`, and last-updated date. |
 | `git skill sync` | Pull `~/.claude/skills` (`git pull --ff-only`); never publishes local work. Shows status before and after the pull so you can see any unpublished local changes — use `git skill publish` to publish them. Replaces the removed `git skill-sync`. |
-| `git skill status` | Show this machine's `~/.claude/skills` sync state: the last background sync timestamp plus any unpublished local changes. Read-only. Replaces the removed `git skill-sync-status`. |
+| `git skill status` | Show this machine's `~/.claude/skills` sync state: the last background sync timestamp plus any unpublished local changes. Also runs a repo-wide check for uncommitted changes outside skill folders (e.g. `.claude-plugin/`, `scripts/`, top-level docs) — those are invisible to the per-skill audit but still block `git update` from syncing the repo. Read-only. Replaces the removed `git skill-sync-status`. |
 | `git skill diff` | Print the full unified diff of every **drifted** skill — an already-published skill with uncommitted local edits. `git skill diff <name>` scopes to one skill and exits with an error if that skill is not drifted. With zero drifted skills it prints an OK message. Read-only, no network calls — use it to review changes before `git skill publish`. |
 | `git skill publish` | Publish a new or edited Claude skill via a pull request: branch off `main`, prompt for a commit message, and open a PR with squash auto-merge. Replaces the removed `git skill-publish`. |
 | `git alias` | Open the interactive alias browser (or static table when piped). |
@@ -199,6 +199,10 @@ Use these aliases to manage the configuration itself.
   ```
 
   `git skill`, `git skill help`, and unknown subcommands still work without the repo installed, so the dispatcher banner remains discoverable.
+</Note>
+
+<Note>
+  `git skill status` and `git skill sync` print two different all-clear messages, and the distinction matters: `[OK] Nothing to publish from this machine` means the skills repo's working tree is fully clean. `[OK] No skill changes to publish` means every *skill* is published, but the repo-wide check still found uncommitted changes outside skill folders — list up to 5 of them and note that they block `git update` from syncing the repo as long as they're present.
 </Note>
 
 **Examples:**
