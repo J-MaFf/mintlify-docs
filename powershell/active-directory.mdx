@@ -73,7 +73,7 @@ The returned object contains these properties:
 
 ### Get-UserComputer.ps1
 
-Finds the most recent workstation where a user authenticated by searching Security event logs (event ID 4624) across all domain controllers.
+Finds the most recent workstation where a user authenticated, using two complementary strategies. **Strategy 1** (default, fast) searches Security event logs (event ID 4624) across domain controllers — but network (Kerberos) logons don't always populate a workstation name, so this can come back empty. **Strategy 2** (fallback, more reliable) queries candidate computers' registries for a matching user-profile SID under `ProfileList` — a local profile is created on first logon even when the event log doesn't capture the session. Strategy 2 runs automatically whenever Strategy 1 doesn't produce a usable workstation name, or always when `-IncludeProfileSearch` is supplied.
 
 ```powershell
 # Basic lookup — prompts for elevation or credentials if needed
@@ -88,13 +88,33 @@ $creds = Get-Credential
 
 # Target a specific domain controller
 .\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -DomainController 'dc01.contoso.com'
+
+# Always run the profile-directory fallback too, even if event logs found a workstation
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -IncludeProfileSearch
+
+# Limit the profile-directory search to specific computers instead of a random AD sample
+.\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -IncludeProfileSearch -ComputerList 'PC01', 'PC02'
 ```
+
+<ParamField path="-IncludeProfileSearch" type="switch">
+  Always run the Strategy 2 profile-directory search in addition to Strategy 1, even if Strategy 1 already found a usable workstation name.
+</ParamField>
+
+<ParamField path="-ComputerList" type="string[]">
+  Computers to query during Strategy 2. If omitted, the script randomly samples computers from Active Directory.
+</ParamField>
+
+<ParamField path="-MaxComputersToQuery" type="int" default="50">
+  Caps how many computers Strategy 2 queries. Set to `0` to query every computer (slower).
+</ParamField>
 
 <Tip>
   When you run the script without administrator rights and without `-Credential`, it offers to relaunch itself elevated while preserving all the arguments you supplied. Supply `-Credential` to skip the elevation prompt entirely.
 </Tip>
 
-**Output fields:** `UserName`, `TimeCreated`, `Workstation`, `DomainController`, `WorkstationSource`, `SourceNetworkAddress`, `LogonType`, `LogonTypeDescription`
+**Output fields (Strategy 1):** `UserName`, `TimeCreated`, `Workstation`, `DomainController`, `WorkstationSource`, `SourceNetworkAddress`, `LogonType`, `LogonTypeDescription`
+
+**Output fields (Strategy 2):** `Computer`, `UserName`, `SAMAccount`, `ProfilePath`, `Status`
 
 ---
 

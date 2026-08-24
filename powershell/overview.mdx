@@ -61,6 +61,10 @@ Before running any script, confirm your environment meets these requirements.
   <Card title="Printer Management" icon="print" href="/powershell/printer-management">
     Batch-install network printers, diagnose print error 0x0000006ba, and automatically restart a failed Print Spooler service.
   </Card>
+
+  <Card title="File Management" icon="file-excel" href="/powershell/file-management">
+    Bulk-convert legacy `.xls` workbooks to `.xlsx`/`.xlsm` via Excel COM automation, with a full audit-trail manifest.
+  </Card>
 </CardGroup>
 
 ## Credential Setup
@@ -72,8 +76,8 @@ Most scripts accept an optional `-Credential` parameter. Capture your credential
 $creds = Get-Credential -UserName 'DOMAIN\admin-username'
 
 # Pass to any script that accepts -Credential
-.\Scripts\iKAT\Registry\DateFormat\Get-UserDateFormats.ps1 -Credential $creds
-.\Scripts\iKAT\Registry\RegionFormat\Set-UserRegionFormats.ps1 -RegionFormat 'en-US' -Credential $creds
+.\Scripts\Registry\Get-UserDateFormats.ps1 -Credential $creds
+.\Scripts\Registry\Set-UserRegionFormats.ps1 -RegionFormat 'en-US' -Credential $creds
 .\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName 'jsmith' -Credential $creds
 ```
 
@@ -104,14 +108,33 @@ $env:OP_KFI_PASSWORD = 'op://vault/item/password'
 
 ## Importing the Modules
 
-The two reusable modules power most of the toolkit's scripts. Import them at the start of your session:
+The reusable modules power most of the toolkit's scripts. Import them at the start of your session:
 
 ```powershell
 # From the repository root
 Import-Module .\Modules\ActiveDirectoryUtils\ActiveDirectoryUtils.psd1
-Import-Module .\Modules\RegistryUtils\RegistryUtils.psd1
+Import-Module .\Modules\UserDateFormatUtils\UserDateFormatUtils.psd1
 ```
+
+<Note>
+  `UserDateFormatUtils` replaces the old `RegistryUtils` module and imports `Modules\CommonUtils` automatically — you don't need to import `CommonUtils` yourself.
+</Note>
 
 <Tip>
   The `ActiveDirectoryUtils` module checks for RSAT on import and attempts installation automatically when your session is elevated. If it cannot install RSAT, it loads in a limited mode and emits a warning — it will not throw a terminating error.
 </Tip>
+
+## Keeping a Deployed Copy Updated
+
+If you've copied this toolkit to a shared machine or file server rather than working from a clone, `Scripts\Deployment\Install-PowerShellScriptsAutoUpdate.ps1` sets up automatic updates from GitHub Releases so that deployed copy doesn't go stale:
+
+```powershell
+# One-time setup — registers a daily Scheduled Task under the current account
+.\Scripts\Deployment\Install-PowerShellScriptsAutoUpdate.ps1
+```
+
+It stores a fine-grained, read-only GitHub PAT (restricted to the installing account plus Administrators via file ACL) and registers a daily Scheduled Task that runs `Scripts\Deployment\Update-PowerShellScriptsRelease.ps1`. On each run, that script checks the GitHub Releases API against a local version marker and, if a newer release exists, downloads the release asset and swaps in `Scripts\`, `Modules\`, `README.md`, and `CHANGELOG.md` — with a full rollback to the previous state if anything in the swap fails.
+
+<Note>
+  This is separate from cloning the repository with `git`. Use it for a deployed copy on a machine that isn't kept up to date with `git pull`.
+</Note>

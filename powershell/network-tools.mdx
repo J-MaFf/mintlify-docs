@@ -10,17 +10,17 @@ The network scripts cover the day-to-day connectivity and troubleshooting tasks 
 
 | Script | Key Parameters | Description |
 |---|---|---|
-| `Scan-Network.ps1` | — | Simulates a network scan with randomized progress output. Useful for visual testing. |
-| `Ping-WithChime.ps1` | — | Continuously pings a hardcoded target every second and plays an audio beep on each successful reply. Edit `$pingTarget` at the top of the script to set the address. |
+| `Invoke-NetworkScan.ps1` | — | Simulates a network scan with randomized progress output. Useful for visual testing. |
+| `Test-ConnectionWithChime.ps1` | — | Continuously pings a hardcoded target every second and plays an audio beep on each successful reply. Edit `$pingTarget` at the top of the script to set the address. |
 | `Get-ComputersViaIP.ps1` | `-ips` | Resolves one or more IP addresses to hostnames via DNS and returns a sorted table. |
 | `Reset-IPConfig.ps1` | `-computersFilePath` | Runs `ipconfig /release` and `/renew` on a list of remote machines via PsExec. |
-| `Fix-RDP.ps1` | — | Writes a registry key that disables UDP transport for RDP, resolving session-drop issues. |
+| `Repair-RDP.ps1` | — | Writes a registry key that disables UDP transport for RDP, resolving session-drop issues. |
 | `Test-MacAddress.ps1` | `-MacAddress` | Checks the local ARP cache to determine whether a MAC address is already in use. |
-| `Setup-OpenSSH-Server.ps1` | `-ServerName`, `-Port`, `-Credential` | Installs and configures OpenSSH Server on a local or remote Windows machine. |
+| `Install-OpenSSHServer.ps1` | `-ServerName`, `-Port`, `-Credential` | Installs and configures OpenSSH Server on a local or remote Windows machine. |
 
 ---
 
-## Ping-WithChime.ps1
+## Test-ConnectionWithChime.ps1
 
 Run a continuous ping loop against any host. A 1000 Hz beep plays on each successful reply so you can monitor connectivity without watching the screen.
 
@@ -28,7 +28,7 @@ Open the script and set the `$pingTarget` variable at the top to the IP address 
 
 ```powershell
 # Edit $pingTarget inside the script first, then run — press Ctrl+C to stop
-.\Scripts\Network\Ping-WithChime.ps1
+.\Scripts\Network\Test-ConnectionWithChime.ps1
 ```
 
 The script outputs a timestamped line for every attempt:
@@ -40,7 +40,7 @@ The script outputs a timestamped line for every attempt:
 ```
 
 <Tip>
-  Use `Ping-WithChime` during maintenance windows to detect the exact moment a device comes back online after a reboot — the beep saves you from staring at the terminal.
+  Use `Test-ConnectionWithChime` during maintenance windows to detect the exact moment a device comes back online after a reboot — the beep saves you from staring at the terminal.
 </Tip>
 
 ---
@@ -99,13 +99,13 @@ The script:
 
 ---
 
-## Fix-RDP.ps1
+## Repair-RDP.ps1
 
 Fixes the common issue where RDP sessions disconnect after approximately 65–90 seconds. The script disables UDP transport for the RDP client by writing a DWORD registry value.
 
 ```powershell
 # Run on the client machine experiencing the disconnections (requires elevation)
-.\Scripts\Network\Fix-RDP.ps1
+.\Scripts\Network\Repair-RDP.ps1
 ```
 
 The script sets:
@@ -152,7 +152,7 @@ Accepted formats: `XX:XX:XX:XX:XX:XX`, `XX-XX-XX-XX-XX-XX`, `XX.XX.XX.XX.XX.XX`,
 
 ---
 
-## Setup-OpenSSH-Server.ps1
+## Install-OpenSSHServer.ps1
 
 Installs and configures OpenSSH Server on a Windows machine so you can connect via SSH — including from VS Code Remote SSH. The script can target the local machine or a remote server over PowerShell Remoting.
 
@@ -170,14 +170,14 @@ Installs and configures OpenSSH Server on a Windows machine so you can connect v
 
 ```powershell
 # Configure OpenSSH on the local machine (requires elevation)
-.\Scripts\Network\Setup-OpenSSH-Server.ps1
+.\Scripts\Network\Install-OpenSSHServer.ps1
 
 # Configure OpenSSH on a remote server
 $creds = Get-Credential
-.\Scripts\Network\Setup-OpenSSH-Server.ps1 -ServerName 'fileserver01.contoso.com' -Credential $creds
+.\Scripts\Network\Install-OpenSSHServer.ps1 -ServerName 'fileserver01.contoso.com' -Credential $creds
 
 # Use a non-standard port
-.\Scripts\Network\Setup-OpenSSH-Server.ps1 -ServerName 'fileserver01.contoso.com' -Port 2222 -Credential $creds
+.\Scripts\Network\Install-OpenSSHServer.ps1 -ServerName 'fileserver01.contoso.com' -Port 2222 -Credential $creds
 ```
 
 The script performs these steps in order:
@@ -206,15 +206,15 @@ The script performs these steps in order:
 
 ---
 
-## Scan-Network.ps1
+## Invoke-NetworkScan.ps1
 
 Runs an animated terminal display that mimics a network scan — complete with randomized hex dumps, fake IP scan lines, and simulated error messages. This is a visual/novelty script, not a production network scanner.
 
 ```powershell
 # Start the fake scan animation (runs for ~100 iterations by default)
-.\Scripts\Network\Scan-Network.ps1
+.\Scripts\Network\Invoke-NetworkScan.ps1
 ```
 
 <Note>
-  `Scan-Network.ps1` does **not** perform any real network activity. It generates fictional output entirely in memory and is safe to run in any environment.
+  `Invoke-NetworkScan.ps1` does **not** perform any real network activity. It generates fictional output entirely in memory and is safe to run in any environment.
 </Note>

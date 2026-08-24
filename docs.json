@@ -42,7 +42,8 @@
               "powershell/active-directory",
               "powershell/date-region-formats",
               "powershell/network-tools",
-              "powershell/printer-management"
+              "powershell/printer-management",
+              "powershell/file-management"
             ]
           },
           {
