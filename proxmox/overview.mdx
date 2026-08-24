@@ -31,7 +31,7 @@ The lab is a host-side pipeline: every script except the two guest helpers runs 
 
 <CardGroup cols={2}>
   <Card title="Build" icon="hammer">
-    `build-template.sh` creates a VM and runs a fully unattended install from a Windows Server eval ISO, injecting VirtIO drivers and setting the admin password from a placeholder.
+    `build-template.sh` creates a VM and runs a fully unattended install from a Windows Server eval ISO, injecting VirtIO drivers and setting the admin password from `LAB_ADMIN_PASSWORD` or an interactive prompt.
   </Card>
   <Card title="Patch" icon="cloud-arrow-down">
     `patch-template.sh` pushes a headless Windows Update loop into the guest and bakes the latest cumulative updates into the image. The loop survives reboots.
@@ -64,7 +64,7 @@ Names and IDs follow a fixed pattern so you can tell golden images, sealed templ
 | Throwaway clone VMID | `1xx` / `9xx` | `110`, `900` |
 
 <Note>
-  The local Administrator account uses placeholder credentials only. The committed answer files ship with the `@@ADMIN_PASSWORD@@` placeholder, and the build and seal scripts substitute your own password at run time via `--password`. Never commit real credentials.
+  The local Administrator account uses placeholder credentials only. The committed answer files ship with the `@@ADMIN_PASSWORD@@` placeholder, and the build and seal scripts substitute your own password at run time — from the `LAB_ADMIN_PASSWORD` environment variable, or an interactive confirmed prompt if it's unset. There's no `--password` flag and no baked-in default; passing `--password` errors immediately. Never commit real credentials.
 </Note>
 
 ## Prerequisites
