@@ -36,6 +36,14 @@ Before running the script, confirm your machine meets these requirements:
     ```
 
     The one-liner sets the execution policy for the current process only, downloads the script from GitHub, and immediately runs it. If the session is not elevated, the script relaunches itself elevated (via the bootstrap's re-downloaded temp copy when needed) — you only need to approve the UAC dialog.
+
+    <Note>
+      If `raw.githubusercontent.com` returns `429: Too Many Requests`, that's GitHub throttling your shared public IP, not a problem with the script. Retry in a few minutes, or fall back to the jsDelivr CDN mirror:
+
+      ```powershell
+      Set-ExecutionPolicy Unrestricted -Scope Process -Force; irm "https://cdn.jsdelivr.net/gh/J-MaFf/winget-app-setup@main/winget-app-install.ps1" | iex
+      ```
+    </Note>
   </Step>
 
   <Step title="Option B — Run from a cloned repository">
@@ -76,7 +84,7 @@ Before running the script, confirm your machine meets these requirements:
     After all apps are installed, the script:
 
     - Sets **PowerShell 7** as the default profile in your Windows Terminal `settings.json`.
-    - Registers **Windows Terminal** as the default terminal application in the registry.
+    - Registers **Windows Terminal** as the default terminal application in the registry — skipped if Windows Terminal isn't actually installed.
     - Installs **[Winget-AutoUpdate (WAU)](/winget/scheduled-updates)** so installed apps stay current on a weekly schedule.
   </Step>
 

@@ -56,6 +56,31 @@ Error `0x80073D06` (`ERROR_INSTALL_PACKAGE_DOWNGRADE`) means AppX rejected a fra
 
 </Accordion>
 
+<Accordion title="PowerShell 7 bootstrap fails with a GitHub throttle (429)">
+
+If the PS7 bootstrap can't reach GitHub because the shared public IP is being rate-limited, the script now detects this and says so instead of a generic failure:
+
+> "PowerShell 7 could not be installed automatically: GitHub is rate-limiting this network (429 Too Many Requests), and every remaining fallback here reads from GitHub too. If winget failed above with a source error, try `winget source reset --force` and re-run — that path does not depend on GitHub. Otherwise wait a while for the throttle to clear, or install PowerShell 7 manually (`winget install Microsoft.PowerShell`, or see https://aka.ms/powershell) from a machine on a different network."
+
+**What's happening:** both PS7-install fallbacks — reading `raw.githubusercontent.com/PowerShell/PowerShell/master/tools/metadata.json` and the `aka.ms/install-powershell.ps1` redirect — resolve through GitHub, so a GitHub-wide throttle on your network blocks both at once. This is the same 429 throttle covered in [Installation](/winget/installation) for the one-liner download itself — a corporate NAT or VPN egress sharing one public IP with many other machines is the usual cause.
+
+**What to do:**
+1. If winget itself failed with a source error earlier in the run, try `winget source reset --force` first — it doesn't depend on GitHub.
+2. Otherwise, wait a few minutes for the throttle to clear and re-run the script.
+3. Or install PowerShell 7 manually with `winget install Microsoft.PowerShell` (or from https://aka.ms/powershell), then re-run the installer — it will find the existing `pwsh` and skip the bootstrap.
+
+</Accordion>
+
+<Accordion title="Windows Terminal install is skipped">
+
+If the summary shows `Skipping: Microsoft.WindowsTerminal (not applicable: ...)`, this is expected, not a failure.
+
+**What's happening:** winget can't self-update Windows Terminal from a session that Windows Terminal itself is hosting — the update would try to replace files the running process has open. The script detects when it's running inside a Windows Terminal tab (via the `WT_SESSION` environment variable, a registry delegation check, and process-ancestry inspection) and skips the doomed install instead of retrying it fruitlessly.
+
+**What to do:** run the installer from a plain `conhost` window (or Windows PowerShell ISE) instead of a Windows Terminal tab if you need Windows Terminal itself installed or updated by this script. Every other app in the curated list still installs normally regardless of which terminal you're running from.
+
+</Accordion>
+
 <Accordion title="Pre-flight check failures">
 
 Before installing anything, the script validates three system requirements. A failure in any of them stops or warns the installation.
