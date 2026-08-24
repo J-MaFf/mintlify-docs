@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "mintlify_docs",
+  "project_id": "9271dfdb-f7fd-4f83-b813-6b17b8a361dd"
+}
