@@ -25,7 +25,7 @@ The script installs the following ten applications. Each entry maps to a winget 
 
 ### Conditional apps
 
-Catalog entries may declare an applicability **condition** that is evaluated before any winget call. An app whose condition is falsy on the current machine is reported as `Skipping: <id> (not applicable: <reason>)` and counted as Skipped in the summary instead of being pointlessly installed. Dell Command Update is gated this way: it installs only when the machine reports a Dell manufacturer. A condition that throws fails open — a warning, then a normal install — so a broken probe can never silently drop an app.
+Catalog entries may declare an applicability **condition** that is evaluated before any winget call. An app whose condition is falsy on the current machine is reported as `Skipping: <id> (not applicable: <reason>)` and counted as Skipped in the summary instead of being pointlessly installed. Dell Command Update is gated this way: it installs only when the machine reports a Dell manufacturer. Windows Terminal is gated too: winget can't self-update Windows Terminal from a session Windows Terminal itself is hosting, so that install is skipped when the script detects it's running inside a Windows Terminal tab. A condition that throws fails open — a warning, then a normal install — so a broken probe can never silently drop an app.
 
 ## How it works
 
@@ -50,7 +50,7 @@ Before any installation begins, the script verifies that the `winget` source is 
 
 ## Windows Terminal configuration
 
-After installation, the script sets PowerShell 7 as the default Windows Terminal profile and registers Windows Terminal as the default terminal application via the registry.
+After installation, the script sets PowerShell 7 as the default Windows Terminal profile and registers Windows Terminal as the default terminal application via the registry — skipped if Windows Terminal isn't installed on the machine.
 
 ## Post-install summary, logs, and exit codes
 
