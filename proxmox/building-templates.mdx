@@ -27,8 +27,9 @@ Pick the index whose `Name` ends in `SERVERSTANDARD` and pass it to the build wi
 `build-template.sh` creates the VM, generates an `autounattend.xml` from the parameterized template, and runs a fully unattended install. It injects the matching VirtIO drivers, partitions the disk, selects the edition, sets the Administrator password, and configures the standard lab hardware (q35, UEFI + Secure Boot, TPM 2.0, VirtIO SCSI/NIC, QEMU agent).
 
 ```bash
+export LAB_ADMIN_PASSWORD='<your lab password>'   # or omit and answer the interactive prompt
 scripts/build-template.sh --version 2022 --vmid 9022 \
-    --iso data:iso/winsrv2022-eval.iso --password 'YourLabPw1!'
+    --iso data:iso/winsrv2022-eval.iso
 ```
 
 The answer file also enables RDP, opens the RDP firewall rule, and installs the VirtIO guest tools on first logon, so the box comes up ready to use.
@@ -41,13 +42,12 @@ The answer file also enables RDP, opens the RDP firewall rule, and installs the 
 | `--vmid` | yes | — | VMID for the new VM. Use the `90YY` convention (e.g. `9022`). |
 | `--iso` | yes | — | The Windows Server eval ISO, as `store:iso/<file>` (e.g. `data:iso/winsrv2022-eval.iso`). |
 | `--index` | no | `2` | `install.wim` image index. Verify with `wimlib-imagex info`. |
-| `--password` | no | `ChangeMe-Lab1!` | Local Administrator password. Always pass your own. |
 | `--disk` | no | `local-lvm` | Storage for the system, EFI, and TPM disks. |
 | `--bridge` | no | `vmbr0` | Network bridge for the VirtIO NIC. |
 | `--virtio` | no | `data:iso/virtio-win.iso` | The VirtIO drivers ISO. |
 
 <Note>
-  The Administrator password defaults to a placeholder (`ChangeMe-Lab1!`). Always pass `--password` with your own lab password — and never commit a real one.
+  There is no `--password` flag and no baked-in default password — passing `--password` now errors immediately (a command-line argument leaks into `ps` output and shell history). Set the `LAB_ADMIN_PASSWORD` environment variable before running the script, or leave it unset and answer the interactive, confirmed prompt it falls back to. A non-interactive run with no `LAB_ADMIN_PASSWORD` set fails outright rather than falling back to a placeholder. Generate the password in 1Password (Dev vault) rather than typing a memorable one.
 </Note>
 
 ### Watch the install
@@ -83,15 +83,19 @@ If patching times out, check `C:\wu-log.txt` inside the guest.
 Sealing turns the prepared VM into a reusable template. `seal-template.sh` fills the OOBE answer file with your password, pushes it to the guest, then runs `sysprep /generalize /oobe /shutdown`. Generalizing strips the machine SID so each clone gets a unique identity. After the VM powers off, the script detaches the install media, sets the boot order to the system disk, renames the VM to `-template`, and runs `qm template`.
 
 ```bash
-scripts/seal-template.sh --vmid 9022 --version 2022 --password 'YourLabPw1!'
+export LAB_ADMIN_PASSWORD='<your lab password>'   # or omit and answer the interactive prompt; skip entirely with --oobe
+scripts/seal-template.sh --vmid 9022 --version 2022
 ```
 
 | Flag | Required | Default | Description |
 |---|---|---|---|
 | `--vmid` | yes | — | The VM to seal. |
 | `--version` | yes | — | Used for the `vm-win-server-YYYY-template` name. |
-| `--password` | no | `ChangeMe-Lab1!` | Fills the OOBE answer file. Use the same password as the build. |
-| `--oobe` | no | bundled template | Path to a custom OOBE answer file. |
+| `--oobe` | no | bundled template | Path to a custom OOBE answer file. Skips the password step entirely — only the bundled template needs a password filled in. |
+
+<Note>
+  As with `build-template.sh`, there is no `--password` flag — it errors if passed. Set `LAB_ADMIN_PASSWORD` or answer the interactive prompt; use the same password as the build. The rendered OOBE answer file now also deletes `C:\oobe.xml` (which would otherwise leave the plaintext password readable on the guest) via a first-logon command on every clone.
+</Note>
 
 When it finishes you have `vm-win-server-2022-template` (VMID 9022), ready to clone.
 
