@@ -26,23 +26,23 @@ bd close <id>         # Complete work
 
 ## Session Completion
 
-> **Reconciled with the `git-policies` skill.** Beads guards durability/sync; git-policies governs what lands on `main`. These steps make work durable **without** auto-merging.
+> **Reconciled with the `git-policies` skill.** Beads guards durability/sync; git-policies governs what lands on `main`. **This repo auto-merges** — decided 2026-08-25: there is no required-review gate on `main` here, so opening a PR and leaving it open accomplishes nothing that merging directly doesn't; docs-only changes ship once self-reviewed.
 
 When ending a work session:
 
 1. **File follow-ups** — beads for sub-tasks; a GitHub issue for anything shippable.
 2. **Run quality gates** (if content/config changed) — lint, build.
 3. **Update bead status** — close finished beads, update in-progress ones.
-4. **Make work durable (do NOT merge to `main`):**
+4. **Make work durable:**
    ```bash
    git add <files> && git commit -S -m "..."   # signed, per git-policies
-   git push -u origin <feature-branch>          # push the FEATURE branch, never main
+   git push -u origin <feature-branch>          # push the FEATURE branch
    bd dolt push                                 # sync beads state (refs/dolt/data)
    ```
-5. **Open / update the PR** — `Fixes #N`, `--assignee J-MaFf`, label; self-review the diff.
-6. **Stop at the gate** — merging to `main` is **human-approved via PR**. Never auto-merge.
+5. **Open the PR** — `Fixes #N`, `--assignee J-MaFf`, label; self-review the diff, fix anything found.
+6. **Squash-merge to `main`** once self-review is clean. No waiting on human approval for this repo — merge as part of finishing the session, not a separate step someone else triggers.
 
-See the `git-policies` skill for the full issue → branch → PR → squash-merge workflow.
+See the `git-policies` skill for the underlying issue → branch → PR → squash-merge mechanics; the auto-merge decision above is this repo's override of that skill's default "leave open for human review" behavior.
 <!-- END BEADS INTEGRATION -->
 
 
