@@ -1,0 +1,83 @@
+---
+title: "Bulk Convert Legacy .xls Files to .xlsx with PowerShell"
+sidebarTitle: "File Management"
+description: "Recursively convert legacy .xls workbooks to .xlsx (or .xlsm for macro-bearing files) via Excel COM automation, with a full audit-trail manifest."
+---
+
+`Convert-XlsToXlsx.ps1` bulk-converts legacy `.xls` workbooks to the modern `.xlsx`/`.xlsm` format using Excel COM automation. It is built to run unattended against large, messy file shares — it never overwrites an existing converted sibling, preserves file timestamps, and only deletes the original `.xls` after verifying the converted file actually exists, is non-zero, and starts with the correct `PK` zip signature.
+
+<Warning>
+  This script requires **Microsoft Excel** to be installed on the machine it runs on — it automates the real Excel COM object, it does not implement the file format itself.
+</Warning>
+
+## Convert-XlsToXlsx.ps1
+
+<ParamField path="-Path" type="string">
+  The root folder to scan for `.xls` files. Optional — if omitted, the script prompts for a path at runtime. Must be an existing directory.
+</ParamField>
+
+<ParamField path="-NonRecursive" type="switch">
+  Limit the scan to the top level of `-Path` only, skipping subfolders. By default the scan recurses into every subdirectory.
+</ParamField>
+
+<ParamField path="-SkipPath" type="string[]">
+  One or more existing directories to exclude from the scan. Matching is boundary-aware and case-insensitive — a skip path matches its own subtree but not an unrelated sibling with a similar name (e.g. skipping `PCUser` does not also skip `PCUser2`).
+</ParamField>
+
+<ParamField path="-Force" type="switch">
+  Skip the interactive confirmation prompt before converting.
+</ParamField>
+
+<ParamField path="-ReportPath" type="string" default="Output\Reports">
+  Directory where the timestamped CSV manifest is written.
+</ParamField>
+
+<ParamField path="-MaxTargetPathLength" type="int" default="218">
+  Files whose resulting `.xlsx`/`.xlsm` path would exceed this length are skipped and reported rather than causing an error partway through the run.
+</ParamField>
+
+```powershell
+# Preview every file that would be converted, skipped, or excluded — makes no changes
+.\Scripts\FileManagement\Convert-XlsToXlsx.ps1 -Path 'C:\Shares\Finance' -WhatIf
+
+# Convert everything under a share, no confirmation prompt
+.\Scripts\FileManagement\Convert-XlsToXlsx.ps1 -Path 'C:\Shares\Finance' -Force
+
+# Convert only the top-level folder, leaving subfolders untouched
+.\Scripts\FileManagement\Convert-XlsToXlsx.ps1 -Path 'C:\Shares\Finance' -NonRecursive -Force
+
+# Exclude one or more subtrees from the scan
+.\Scripts\FileManagement\Convert-XlsToXlsx.ps1 -Path 'C:\Shares\Finance' -SkipPath 'C:\Shares\Finance\Archive', 'C:\Shares\Finance\PCUser' -Force
+```
+
+### What the script does
+
+<Steps>
+  <Step title="Scan for .xls files">
+    Recursively enumerates `.xls` files under `-Path` (or only the top level with `-NonRecursive`), excluding anything under a `-SkipPath` directory. Excel lock files (`~$name.xls`) and zero-byte stubs are dropped from the work list before any Excel contact.
+  </Step>
+  <Step title="Pre-open gates">
+    For each file, checks in order: does a `.xlsx`/`.xlsm` sibling already exist (skipped, not overwritten), would the target path exceed `-MaxTargetPathLength`, and is the file accessible (not locked or permission-denied).
+  </Step>
+  <Step title="Convert via Excel COM">
+    Opens the workbook in Excel. Macro-bearing workbooks are saved as `.xlsm` (format 52) to preserve VBA instead of stripping it; everything else is saved as `.xlsx`.
+  </Step>
+  <Step title="Verify before deleting the original">
+    The original `.xls` is deleted only after confirming the converted file exists, has a non-zero size, and starts with the `PK` zip-format signature. A `try`/`finally` around the conversion loop guarantees no stranded `EXCEL.EXE` process is left behind, even on `Ctrl+C`.
+  </Step>
+  <Step title="Preserve timestamps and write the manifest">
+    `LastWriteTime` and `CreationTime` are copied from the original to the converted file. Every file's outcome — `Converted`, `Skipped-TargetExists`, `Skipped-PathTooLong`, `Skipped-AccessDenied`, `Skipped-ExcludedPath`, or `Failed` — is appended to a timestamped CSV under `-ReportPath`.
+  </Step>
+</Steps>
+
+<Tip>
+  `-WhatIf` performs a full read-only inventory pass — every file that would be converted, skipped, or excluded is reported in the manifest, with nothing on disk touched.
+</Tip>
+
+<Note>
+  A non-matching dummy password is tried against password-protected workbooks so an encrypted file throws immediately (in roughly 30ms) instead of hanging behind an invisible modal dialog on the hidden Excel instance — it's recorded as `Failed` with the error message rather than silently skipped.
+</Note>
+
+<Note>
+  The script runs interactively only. Omitting `-Path` prompts for a folder in an interactive session; a non-interactive session (scheduled task, CI) is never prompted — it fails immediately and tells you to pass `-Path` explicitly, so a scheduled run can't hang forever waiting for input that will never come.
+</Note>

@@ -12,7 +12,7 @@ The printer scripts handle the three most common printer support scenarios in a 
 
 ---
 
-## addNetworkPrinters.ps1
+## Add-NetworkPrinter.ps1
 
 Silently adds a list of network printers to the current user's profile. The script uses a **marker file** in the user's profile folder (`%USERPROFILE%\printers_added.txt`) to ensure printers are only installed once — ideal for login scripts or GPO deployments.
 
@@ -30,7 +30,7 @@ Create a `printerNames.txt` file in the same directory as the script. Add one UN
 
 ```powershell
 # Run from the Printers directory — reads printerNames.txt automatically
-.\Scripts\Printers\addNetworkPrinters.ps1
+.\Scripts\Printers\Add-NetworkPrinter.ps1
 ```
 
 The script:
@@ -38,12 +38,12 @@ The script:
 2. Checks for the marker file `%USERPROFILE%\printers_added.txt`.
 3. If the marker file **does not exist**, installs every printer in the list using `Add-Printer -ConnectionName` and then creates the marker file.
 4. If the marker file **already exists**, skips installation and exits cleanly.
-5. Writes a full transcript to `addNetworkPrinters_Transcript.txt` beside the script.
+5. Writes a full transcript to `Add-NetworkPrinter_Transcript.txt` beside the script.
 
 ```powershell
 # Force a re-install by removing the marker file first
 Remove-Item -Path "$env:USERPROFILE\printers_added.txt" -Force
-.\Scripts\Printers\addNetworkPrinters.ps1
+.\Scripts\Printers\Add-NetworkPrinter.ps1
 ```
 
 <Note>
@@ -52,7 +52,7 @@ Remove-Item -Path "$env:USERPROFILE\printers_added.txt" -Force
 
 ---
 
-## Diagnose-PrintError.ps1
+## Debug-PrintError.ps1
 
 A comprehensive diagnostic script for the Windows print error **0x0000006ba** ("The print spooler service is not running"). It checks local and remote services, firewall rules, network connectivity, and recent event log entries, then prints a categorized remediation guide.
 
@@ -60,13 +60,13 @@ A comprehensive diagnostic script for the Windows print error **0x0000006ba** ("
 
 ```powershell
 # Run without a print server argument to check local state only
-.\Scripts\Printers\Diagnose-PrintError.ps1
+.\Scripts\Printers\Debug-PrintError.ps1
 
 # Include a print server to test connectivity and remote spooler status
-.\Scripts\Printers\Diagnose-PrintError.ps1 -PrintServer 'PRINTSERVER01'
+.\Scripts\Printers\Debug-PrintError.ps1 -PrintServer 'PRINTSERVER01'
 
 # Use an IP address if DNS resolution is the suspected problem
-.\Scripts\Printers\Diagnose-PrintError.ps1 -PrintServer '192.168.1.100'
+.\Scripts\Printers\Debug-PrintError.ps1 -PrintServer '192.168.1.100'
 ```
 
 ### What the Script Checks
@@ -139,7 +139,7 @@ The script waits up to 30 seconds for the service to reach the `Stopped` state b
 | `1` | Failed to repair — manual intervention required |
 
 <Tip>
-  If `Repair-PrintSpooler.ps1` exits with code `1`, run `Diagnose-PrintError.ps1` for a full picture of what is blocking the service from starting (driver issues, corrupted spool files, RPC failures, etc.).
+  If `Repair-PrintSpooler.ps1` exits with code `1`, run `Debug-PrintError.ps1` for a full picture of what is blocking the service from starting (driver issues, corrupted spool files, RPC failures, etc.).
 </Tip>
 
 ### Clearing a Stuck Print Queue

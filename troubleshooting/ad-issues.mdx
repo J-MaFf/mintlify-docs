@@ -80,7 +80,7 @@ The `ActiveDirectoryUtils` module is built to degrade gracefully — it attempts
 </Accordion>
 
 <Accordion title="Get-UserComputer returns no results">
-  `Get-UserComputer` queries the **Security event log** on each domain controller for Event ID 4624 (successful logon). If it returns nothing, the most likely causes are that auditing is not enabled or that you lack access to read the Security log.
+  `Get-UserComputer.ps1` (the script, not the `ActiveDirectoryUtils` module function it wraps) tries two strategies. Strategy 1 queries the **Security event log** on each domain controller for Event ID 4624 (successful logon) — if it returns nothing, the most likely causes are that auditing is not enabled or that you lack access to read the Security log. When Strategy 1 doesn't find a usable workstation name, the script automatically falls back to Strategy 2, which searches candidate computers' registries for a matching user-profile SID instead — so a genuine "no results" from the *script* (as opposed to the raw module function) means both strategies came up empty.
 
   **Verify Event ID 4624 is being generated on domain controllers:**
 
@@ -118,6 +118,14 @@ The `ActiveDirectoryUtils` module is built to degrade gracefully — it attempts
   ```powershell
   Get-UserComputer -UserName "alice" -Verbose
   ```
+
+  **Force the profile-directory fallback (Strategy 2)** if event logs aren't cooperating — this queries `ProfileList` on candidate computers directly instead of relying on Security log auditing:
+
+  ```powershell
+  .\Scripts\ActiveDirectory\Get-UserComputer.ps1 -UserName "alice" -IncludeProfileSearch -ComputerList "PC01", "PC02"
+  ```
+
+  A local profile is created on a computer the first time a user logs on interactively, so Strategy 2 can find a result even when Security-log auditing is disabled or unreadable — though it won't catch network-only (no interactive logon) sessions.
 </Accordion>
 
 <Accordion title="Remote operations fail — WS-Man or PowerShell Remoting errors">
