@@ -4,7 +4,7 @@ sidebarTitle: "Printers"
 description: "Connect network printers with no admin rights, diagnose print error 0x0000006ba, and automatically restart a failed Print Spooler service."
 ---
 
-The printer scripts handle the most common printer support scenarios in a Windows environment: letting a standard user connect a branch's shared network printers or the KFI office IPP printers themselves, diagnosing the notorious error 0x0000006ba, and restarting a hung Print Spooler service.
+The printer scripts handle the most common printer support scenarios in a Windows environment: letting a standard user connect a branch's shared network printers or install the KFI office IPP printers directly, diagnosing the notorious error 0x0000006ba, and restarting a hung Print Spooler service.
 
 <Warning>
   `Debug-PrintError.ps1` and `Repair-PrintSpooler.ps1` require an **elevated (Administrator) PowerShell session**. `Add-NetworkPrinter.ps1` and `Install-KfiPrinter.ps1` are the opposite by design — they run as a standard user and never elevate, so a driver that would need an admin install is reported, not silently attempted.
@@ -47,7 +47,7 @@ Each discovered printer is tagged with whether the connection can succeed withou
 A transcript of every run is written to `%LOCALAPPDATA%\PrinterInstall\Add-NetworkPrinter_<yyyyMMdd-HHmmss>.log`.
 
 <Note>
-  No admin rights needed — the script never checks for, requests, or requires administrator rights. It must run on the branch's own network (or a domain trust that reaches it); the print server isn't reachable otherwise. Exit codes: `0` = every selected printer connected (or the user quit a menu without selecting anything); `1` = at least one printer failed, or the supplied Company/Branch/Printer didn't match.
+  No admin rights needed — the script never checks for, requests, or requires administrator rights. It must run on the branch's own network (or a domain trust that reaches it); the print server isn't reachable otherwise. Exit codes: `0` = every selected printer connected or was already connected, or the user quit a menu without selecting anything; `1` = at least one printer failed, the supplied Company/Branch/Printer didn't match, or discovery failed.
 </Note>
 
 ---
