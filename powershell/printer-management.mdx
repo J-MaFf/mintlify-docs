@@ -1,53 +1,83 @@
 ---
 title: "Manage Network Printers and Print Spooler with PowerShell"
 sidebarTitle: "Printers"
-description: "Batch-install network printers from a configuration file, diagnose print error 0x0000006ba, and automatically restart a failed Print Spooler service."
+description: "Connect network printers with no admin rights, diagnose print error 0x0000006ba, and automatically restart a failed Print Spooler service."
 ---
 
-The printer scripts handle the three most common printer support scenarios in a Windows environment: silently installing a defined set of network printers for a user, diagnosing the notorious error 0x0000006ba, and restarting a hung Print Spooler service. All three scripts require administrator rights.
+The printer scripts handle the most common printer support scenarios in a Windows environment: letting a standard user connect a branch's shared network printers or install the KFI office IPP printers directly, diagnosing the notorious error 0x0000006ba, and restarting a hung Print Spooler service.
 
 <Warning>
-  All scripts in this section require an **elevated (Administrator) PowerShell session**. Running them without elevation will either produce an error or produce incomplete results.
+  `Debug-PrintError.ps1` and `Repair-PrintSpooler.ps1` require an **elevated (Administrator) PowerShell session**. `Add-NetworkPrinter.ps1` and `Install-KfiPrinter.ps1` are the opposite by design — they run as a standard user and never elevate, so a driver that would need an admin install is reported, not silently attempted.
 </Warning>
 
 ---
 
 ## Add-NetworkPrinter.ps1
 
-Silently adds a list of network printers to the current user's profile. The script uses a **marker file** in the user's profile folder (`%USERPROFILE%\printers_added.txt`) to ensure printers are only installed once — ideal for login scripts or GPO deployments.
+Double-clickable, non-admin installer that lets a standard user pick **Company → Branch**, see that branch's shared printers discovered live from its print server, pick one or more, and connect them with `Add-Printer -ConnectionName`. Nothing is hard-coded per printer — only each branch's print server address lives in the script's built-in catalog (currently `KFI` / `Walworth`).
 
-### Setup
-
-Create a `printerNames.txt` file in the same directory as the script. Add one UNC printer path per line:
-
-```text
-\\printserver01\HP-LaserJet-Finance
-\\printserver01\Xerox-Color-Reception
-\\printserver02\Canon-MFP-IT
-```
+Each discovered printer is tagged with whether the connection can succeed without admin rights: a v4/class-driver printer connects through the inbox "Microsoft enhanced Point and Print" driver with no install, so a standard user succeeds (`[no admin needed]`); a v3 vendor-driver printer needs that driver already present on the PC (`[driver needed - IT]`) or its version is unknown (`[driver unknown]`) — those are shown and allowed to fail with a clear message rather than hidden.
 
 ### Usage
 
 ```powershell
-# Run from the Printers directory — reads printerNames.txt automatically
+# Double-click Add-NetworkPrinter.bat, or run the script directly:
 .\Scripts\Printers\Add-NetworkPrinter.ps1
+
+# Shows the Company, Branch, and Printer menus and connects whatever is picked
 ```
 
-The script:
-1. Checks for `printerNames.txt` beside the script.
-2. Checks for the marker file `%USERPROFILE%\printers_added.txt`.
-3. If the marker file **does not exist**, installs every printer in the list using `Add-Printer -ConnectionName` and then creates the marker file.
-4. If the marker file **already exists**, skips installation and exits cleanly.
-5. Writes a full transcript to `Add-NetworkPrinter_Transcript.txt` beside the script.
+<ParamField path="-Company" type="string">
+  Which company's catalog entries to use. Omit to show a numbered menu — skipped automatically when the catalog has exactly one company.
+</ParamField>
+
+<ParamField path="-Branch" type="string">
+  Which of the company's branches to use. Omit to show a numbered menu — skipped automatically when the company has exactly one branch.
+</ParamField>
+
+<ParamField path="-Printer" type="string[]">
+  One or more share names (the `ShareName`, not the friendly name) to connect without showing the printer menu. Case-insensitive; each value must match a share discovered live on the branch's print server.
+</ParamField>
 
 ```powershell
-# Force a re-install by removing the marker file first
-Remove-Item -Path "$env:USERPROFILE\printers_added.txt" -Force
-.\Scripts\Printers\Add-NetworkPrinter.ps1
+# Skip all three menus for unattended/scripted use
+.\Scripts\Printers\Add-NetworkPrinter.ps1 -Company KFI -Branch Walworth -Printer 'CopyRoom-HP', 'Front-Zebra'
 ```
 
+A transcript of every run is written to `%LOCALAPPDATA%\PrinterInstall\Add-NetworkPrinter_<yyyyMMdd-HHmmss>.log`.
+
 <Note>
-  Each user has their own marker file, so running this script as different users on the same machine will install printers correctly for each account. The transcript log is shared per-directory, so runs from multiple accounts will overwrite the same transcript file.
+  No admin rights needed — the script never checks for, requests, or requires administrator rights. It must run on the branch's own network (or a domain trust that reaches it); the print server isn't reachable otherwise. Exit codes: `0` = every selected printer connected or was already connected, or the user quit a menu without selecting anything; `1` = at least one printer failed, the supplied Company/Branch/Printer didn't match, or discovery failed.
+</Note>
+
+---
+
+## Install-KfiPrinter.ps1
+
+Installs the KFI01 and/or KFI02 HP MFP M776 printers as direct IPP queues, with no administrator rights and nothing pre-staged by IT. On Windows 11 24H2 or later it calls the WinRT `Windows.Devices.Printers.IppPrintDeviceManager` API — the same one Settings uses — and reports the result automatically. On older Windows (or when that API is unavailable) it falls back to opening Settings at the printers page with the exact numbered steps to follow, then watches the printer list until the new queue appears (or times out after five minutes).
+
+### Usage
+
+```powershell
+# Double-click Install-KfiPrinter.bat, or run the script directly:
+.\Scripts\Printers\Install-KfiPrinter.ps1
+
+# Shows a menu (1 = KFI01, 2 = KFI02, 3 = both, Q = quit)
+```
+
+<ParamField path="-PrinterName" type="string">
+  `KFI01`, `KFI02`, or `All` for both. Omit to show the console menu.
+</ParamField>
+
+```powershell
+# Skip the menu
+.\Scripts\Printers\Install-KfiPrinter.ps1 -PrinterName All
+```
+
+A transcript of every run is written to `%LOCALAPPDATA%\KfiPrinterInstall\Install-KfiPrinter_<yyyyMMdd-HHmmss>.log`.
+
+<Note>
+  No admin rights needed — the script never checks for, requests, or requires administrator rights. The PC must be on the KFI office network (not VPN or guest Wi-Fi). Exit codes: `0` = every selected printer is installed (or was already installed); `2` = no failures, but at least one printer needs the Settings steps finished by hand; `1` = at least one printer failed.
 </Note>
 
 ---
