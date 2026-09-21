@@ -14,7 +14,18 @@ The printer scripts handle the most common printer support scenarios in a Window
 
 ## Add-NetworkPrinter.ps1
 
-Double-clickable, non-admin installer that lets a standard user pick **Company → Branch**, see that branch's shared printers discovered live from its print server, pick one or more, and connect them with `Add-Printer -ConnectionName`. Nothing is hard-coded per printer — only each branch's print server address lives in the script's built-in catalog (currently `KFI` / `Walworth`).
+Double-clickable, non-admin installer that lets a standard user pick **Company → Branch**, see that branch's shared printers discovered live from its print server, pick one or more, and connect them with `Add-Printer -ConnectionName`. Nothing is hard-coded per printer — only each branch's print server address (and, when two branches share one server, a share-name prefix used to tell their printers apart) lives in the script's built-in catalog:
+
+| Company | Branches |
+|---|---|
+| `KFI` | Walworth, Jefferson, Folsom |
+| `JFC.CA` (JFC Canada) | JCM (Montreal), JCT (Toronto), JCV (Vancouver) |
+| `KSU` (Kikkoman Sales USA) | KIA (Atlanta), KIC (Chicago), KID (Dallas), KIH (HQ), KIL (Los Angeles), KIN |
+| `JFC` (US, Japanese Food Company) | 18 confirmed branches, each on its own dedicated print server |
+
+<Note>
+  Walworth and Jefferson are the only branches that share one print server. When a server is shared, the printer menu is filtered to the selected branch's own shares by a `SharePrefix` catalog value — Jefferson only sees shares starting with `KFJ`, and Walworth's un-prefixed shares are filtered clear of Jefferson's. Every other branch runs its own dedicated print server, so no filtering applies.
+</Note>
 
 Each discovered printer is tagged with whether the connection can succeed without admin rights: a v4/class-driver printer connects through the inbox "Microsoft enhanced Point and Print" driver with no install, so a standard user succeeds (`[no admin needed]`); a v3 vendor-driver printer needs that driver already present on the PC (`[driver needed - IT]`) or its version is unknown (`[driver unknown]`) — those are shown and allowed to fail with a clear message rather than hidden.
 
