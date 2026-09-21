@@ -72,7 +72,7 @@ Error `0x80073CF3` means AppX rejected the App Installer package because a frame
 
 If more than one `Microsoft.DesktopAppInstaller` (winget) version is registered at the same time — a structural AppX conflict, not a transient lock — neither version can finish registering, and no amount of waiting or retrying resolves it.
 
-**What the script does automatically:** before installing anything, and again after any winget-launch wait, the script checks whether more than one `DesktopAppInstaller` version is registered. If it finds one, it fails fast instead of letting every app in the catalog burn its own retry budget against the same dead end:
+**What the script does automatically:** before installing anything, and again if winget doesn't become launchable after Winget-AutoUpdate installs or upgrades, the script checks whether more than one `DesktopAppInstaller` version is registered. If it finds one, it fails fast instead of letting every app in the catalog burn its own retry budget against the same dead end:
 
 > "winget is deadlocked between N conflicting DesktopAppInstaller versions (...) - a structural AppX conflict outside this installer's control, not something retrying resolves. Every app below will be marked failed without an install attempt; see issue #279 for details."
 
