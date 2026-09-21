@@ -56,6 +56,30 @@ Error `0x80073D06` (`ERROR_INSTALL_PACKAGE_DOWNGRADE`) means AppX rejected a fra
 
 </Accordion>
 
+<Accordion title="Winget repair fails with a missing framework dependency — error code 0x80073CF3">
+
+Error `0x80073CF3` means AppX rejected the App Installer package because a framework it depends on — `Microsoft.WindowsAppRuntime.1.8`, as of this writing — is not present on the machine at all. This is distinct from the downgrade rejection above (`0x80073D06`): there, a required framework is present but too old; here, it is missing entirely.
+
+**What the script does automatically:** the repair path recognizes the `0x80073CF3` signature and stops immediately with a warning naming the missing framework, instead of retrying — retrying cannot install a framework that genuinely is not on the machine:
+
+> "Fix: this machine (or runner image) is missing the Microsoft.WindowsAppRuntime.1.8 framework App Installer depends on. That is an external packaging gap, not something this script can install reliably on its own; see issue #279. Retrying will not help until the framework is present."
+
+**If you hit this error**, install or update `Microsoft.WindowsAppRuntime.1.8` on the machine (via the Microsoft Store or its standalone installer), then re-run the script.
+
+</Accordion>
+
+<Accordion title="Winget deadlocked between conflicting DesktopAppInstaller versions">
+
+If more than one `Microsoft.DesktopAppInstaller` (winget) version is registered at the same time — a structural AppX conflict, not a transient lock — neither version can finish registering, and no amount of waiting or retrying resolves it.
+
+**What the script does automatically:** before installing anything, and again after any winget-launch wait, the script checks whether more than one `DesktopAppInstaller` version is registered. If it finds one, it fails fast instead of letting every app in the catalog burn its own retry budget against the same dead end:
+
+> "winget is deadlocked between N conflicting DesktopAppInstaller versions (...) - a structural AppX conflict outside this installer's control, not something retrying resolves. Every app below will be marked failed without an install attempt; see issue #279 for details."
+
+**If you hit this error**, this is an external packaging conflict, not a fault in this script. Check which versions are registered with `Get-AppxPackage -Name Microsoft.DesktopAppInstaller`, resolve the conflict (e.g. via the Microsoft Store's App Installer update), then re-run the script.
+
+</Accordion>
+
 <Accordion title="PowerShell 7 bootstrap fails with a GitHub throttle (429)">
 
 If the PS7 bootstrap can't reach GitHub because the shared public IP is being rate-limited, the script now detects this and says so instead of a generic failure:
