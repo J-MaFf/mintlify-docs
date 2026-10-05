@@ -155,7 +155,7 @@ Put any setting that should only apply to this machine in that file — a differ
   The auto-update job runs at every login. It performs `git pull` on the gitconfig repository, and if `.gitconfig.template` changed in that pull, regenerates `~/.gitconfig` automatically. It also prunes merged branches in the repository to keep things tidy. Run the same operation on demand at any time with `git selfupdate`.
 </Note>
 
-Before any generated or linked file is replaced, the previous version is saved as a timestamped backup (`<file>.bak.YYYYMMDD-HHMMSS`), keeping the newest 5 backups per file. Set the `GITCONFIG_BACKUP_KEEP` environment variable to change that limit — `0` keeps all of them. A symlink that already points into the repo is skipped (no backup needed), and `~/.gitconfig.local` is never modified by the install scripts or the auto-update job.
+Before any generated or linked file is replaced, the previous version is saved as a timestamped backup (`<file>.bak.YYYYMMDD-HHMMSS`), keeping the newest 5 backups per file. Set the `GITCONFIG_BACKUP_KEEP` environment variable to change that limit — `0` keeps all of them. A symlink that already points into the repo is left alone; a stale one is replaced without a backup, so re-running never creates new backups for it. `~/.gitconfig.local` is never modified by the install scripts or the auto-update job.
 
 ## Verifying the Installation
 
