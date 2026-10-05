@@ -69,6 +69,7 @@ cd ~/Documents/Scripts/gitconfig
 
     The Windows installer:
 
+    - Checks for a Python interpreter right after elevation, before touching any files. If none is found it warns and asks `Continue anyway? (y/n)` — Python only powers the `git alias` browser, so the core install still works without it. `-Force` answers yes automatically.
     - Generates `~/.gitconfig` from the template.
     - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py` (requires Admin).
     - Generates `~/.gitconfig.local`.
@@ -84,15 +85,35 @@ cd ~/Documents/Scripts/gitconfig
   </Tab>
 </Tabs>
 
-## Windows Setup Flags
+<Note>
+  `scripts/mac version/install.sh` and `scripts/linux version/install.sh` are now thin wrappers around a single shared implementation, `scripts/unix/install.sh` — the commands above are unchanged, but you can also call the unified script directly.
+</Note>
 
-The Windows installer exposes several flags for granular control:
+## Setup Flags
+
+The macOS/Linux and Windows installers expose matching flags for granular control.
+
+**macOS and Linux** (`scripts/unix/install.sh`, or the `mac version`/`linux version` wrappers):
 
 | Flag | Effect |
 | --- | --- |
-| `-Force` | Overwrite existing files without prompting. Use this for fresh installs and re-installs. |
-| `-NoTask` | Skip Task Scheduler registration. Use this on machines where you don't want auto-sync. |
+| `-f`, `--force` | Overwrite existing files without prompting. Use this for fresh installs and re-installs. |
+| `--reinstall` | Tear down the previous install first (runs `cleanup-gitconfig.sh --force`; removed files are still backed up) before reinstalling. |
+| `--no-scheduler` | Skip the auto-sync job (the launchd agent on macOS, the cron job on Linux). `--no-launchd` and `--no-cron` are accepted as synonyms. |
+| `-h`, `--help` | Print the full usage summary and exit. |
+
+**Windows** (`scripts/windows version/install.ps1`):
+
+| Flag | Effect |
+| --- | --- |
+| `-Force` | Overwrite existing files without prompting. Use this for fresh installs and re-installs. Also answers "yes" to the Python preflight prompt automatically. |
+| `-NoTask` | Skip Task Scheduler registration. Use this on machines where you don't want auto-sync. Without `-Reinstall`, this no longer removes an existing login task from a previous install. |
+| `-Reinstall` | Tear down the existing install first (`Cleanup-GitConfig.ps1 -Force -KeepLocal`, which also removes the scheduled task) before reinstalling. |
 | `-Help` | Print the full usage summary and exit. |
+
+<Note>
+  A plain re-run (no `--reinstall`/`-Reinstall`) now converges in place instead of tearing everything down first: existing files that differ are backed up and regenerated, and links that already point into the repo are left alone. Full cleanup only runs when you explicitly pass `--reinstall` or `-Reinstall`.
+</Note>
 
 You can also run the individual sub-scripts directly:
 
@@ -134,7 +155,7 @@ Put any setting that should only apply to this machine in that file — a differ
   The auto-update job runs at every login. It performs `git pull` on the gitconfig repository, and if `.gitconfig.template` changed in that pull, regenerates `~/.gitconfig` automatically. It also prunes merged branches in the repository to keep things tidy. Run the same operation on demand at any time with `git selfupdate`.
 </Note>
 
-Your existing `~/.gitconfig` is backed up to `~/.gitconfig.bak` before each regeneration, and `~/.gitconfig.local` is never modified.
+Before any generated or linked file is replaced, the previous version is saved as a timestamped backup (`<file>.bak.YYYYMMDD-HHMMSS`), keeping the newest 5 backups per file. Set the `GITCONFIG_BACKUP_KEEP` environment variable to change that limit — `0` keeps all of them. A symlink that already points into the repo is left alone; a stale one is replaced without a backup, so re-running never creates new backups for it. `~/.gitconfig.local` is never modified by the install scripts or the auto-update job.
 
 ## Verifying the Installation
 
