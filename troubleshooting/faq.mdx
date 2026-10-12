@@ -93,7 +93,7 @@ This page collects answers to questions that come up frequently across all of J-
       code = !code .
   ```
 
-  `~/.gitconfig.local` is included by `~/.gitconfig` via `[include]` and is **never modified by the install scripts or the auto-update job**. Your custom aliases survive every `git selfupdate`.
+  `~/.gitconfig.local` is included by `~/.gitconfig` via `[include]`. The auto-update job never modifies it. Re-running the installer with `--force` **does** regenerate it, but preserves everything you added — your custom aliases and other settings land in a "Your settings" section — while only the signing, credential-helper, and `core.excludesfile` settings are rebuilt. Either way, your custom aliases survive every `git selfupdate`.
 
   You can also use `git localconfig <key> <value>` to set arbitrary config values:
 
@@ -190,7 +190,10 @@ This page collects answers to questions that come up frequently across all of J-
   | --- | --- |
   | `winget-app-install.ps1` | `%ProgramData%\winget-app-setup\logs\install-<yyyyMMdd-HHmmss>.log` |
   | Winget-AutoUpdate (WAU) | WAU's own install location — see the [WAU documentation](https://github.com/Romanitho/Winget-AutoUpdate) |
-  | gitconfig auto-update | Logged to the platform job output (launchd / Task Scheduler / cron) |
+  | gitconfig auto-update (macOS) | `<repo>/docs/update-gitconfig.log` |
+  | gitconfig auto-update (Windows) | `<repo>\docs\update-gitconfig.log` (UTF-8, auto-rolled to `.log.1` past 1 MB) |
+  | gitconfig auto-update (Linux, systemd) | the journal — `journalctl --user -u gitconfig-update` |
+  | gitconfig auto-update (Linux, cron fallback) | `${XDG_STATE_HOME:-~/.local/state}/gitconfig/gitconfig-update.log` |
   | `kfj_task_extractor.py` | `output/kfj_task_extractor.log` (relative to the script directory; created/appended on every run) |
 
   To view the winget-app-setup log directory:
@@ -199,22 +202,23 @@ This page collects answers to questions that come up frequently across all of J-
   explorer "$env:ProgramData\winget-app-setup\logs"
   ```
 
-  For the gitconfig auto-update job on Windows, view Task Scheduler history:
+  For the gitconfig auto-update job on Windows, view Task Scheduler history (note the real task name, `GitConfig Pull at Login`) and tail the log:
 
   ```powershell
-  Get-ScheduledTaskInfo -TaskName "Update-GitConfig" | Select-Object LastRunTime, LastTaskResult
+  Get-ScheduledTaskInfo -TaskName "GitConfig Pull at Login" | Select-Object LastRunTime, LastTaskResult
+  Get-Content "$HOME\Documents\Scripts\gitconfig\docs\update-gitconfig.log" -Tail 50
   ```
 
-  On macOS, view the launchd agent output:
+  On macOS, the launchd agent writes directly to the repo's log file instead of the system log:
 
   ```bash
-  log show --predicate 'process == "bash"' --last 1h | grep gitconfig
+  tail -f ~/Documents/Scripts/gitconfig/docs/update-gitconfig.log
   ```
 
-  On Linux, check your cron log:
+  On Linux, check the systemd timer first — it's the default whenever `systemctl --user` works — and fall back to the cron log only if you're on the cron fallback (containers, WSL without systemd, no user session):
 
   ```bash
-  grep gitconfig /var/log/syslog   # Debian/Ubuntu
-  grep gitconfig /var/log/cron     # RHEL/Fedora
+  journalctl --user -u gitconfig-update --since today   # systemd (default)
+  tail -f "${XDG_STATE_HOME:-$HOME/.local/state}/gitconfig/gitconfig-update.log"   # cron fallback
   ```
 </Accordion>

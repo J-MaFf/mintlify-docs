@@ -12,8 +12,8 @@ At its core, the installer takes a single `.gitconfig.template` file that lives 
 
 - **Aliases** give you short, memorable commands for inspecting history, committing, branching, syncing with remotes, and managing the configuration itself.
 - **The interactive alias browser** (`git alias`) opens a searchable, category-tabbed TUI powered by the `textual` Python package. Press **Ctrl-G** at your shell prompt to insert a chosen alias directly onto the command line.
-- **Auto-sync** runs at every login (launchd on macOS, Task Scheduler on Windows, cron on Linux). It pulls the latest commits from the gitconfig repository and, when the template has changed, regenerates `~/.gitconfig` automatically. You can also trigger it on demand with `git selfupdate`.
-- **Machine-specific overrides** live in `~/.gitconfig.local`, which the installer never touches. Put per-machine settings — signing keys, local `safe.directory` entries, work-specific identity — there and they survive every update.
+- **Auto-sync** runs at every login (launchd on macOS, Task Scheduler on Windows, a systemd user timer or cron on Linux). It pulls the latest commits from the gitconfig repository and, when the template has changed, regenerates `~/.gitconfig` automatically. You can also trigger it on demand with `git selfupdate`.
+- **Machine-specific overrides** live in `~/.gitconfig.local`. The auto-update job never touches it; re-running the installer with `--force` preserves everything you added while rebuilding only the signing, credential-helper, and `core.excludesfile` settings. Put per-machine settings — signing keys, local `safe.directory` entries, work-specific identity — there and they survive every update.
 
 ## Key Features
 
@@ -31,7 +31,7 @@ At its core, the installer takes a single `.gitconfig.template` file that lives 
   </Card>
 
   <Card title="Machine-Specific Config" icon="sliders">
-    `~/.gitconfig.local` is included automatically but never overwritten. Edit it with `git localconfig` to add per-machine settings.
+    `~/.gitconfig.local` is included automatically, and `git localconfig` lets you add per-machine settings. The auto-update job never touches it, and regenerating it on purpose (`install --force`) preserves what you added.
   </Card>
 </CardGroup>
 
@@ -40,8 +40,8 @@ At its core, the installer takes a single `.gitconfig.template` file that lives 
 | Platform | Shell / Environment | Auto-Sync Job | Minimum Requirement |
 | --- | --- | --- | --- |
 | macOS | bash / zsh | launchd agent | macOS 12\+, Homebrew, Python 3 |
-| Linux | bash | cron job | bash 4.0\+, cron, Python 3 |
-| Windows | PowerShell 5.1\+ or 7\+ | Task Scheduler | PowerShell 5.1\+, Python 3 |
+| Linux | bash | systemd user timer (falls back to cron) | bash 4.0\+ for the Ctrl-G widget, systemd or cron, Python 3 |
+| Windows | PowerShell 5.1\+ or 7\+ | Task Scheduler (`GitConfig Pull at Login`) | PowerShell 5.1\+, Python 3 |
 
 ## Where to Go Next
 
