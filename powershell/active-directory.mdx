@@ -1,7 +1,7 @@
 ---
 title: "Active Directory Management with PowerShell Scripts"
 sidebarTitle: "Active Directory"
-description: "Use the ActiveDirectoryUtils module to query AD users, find last-logon workstations, manage group membership, and disable stale computer accounts."
+description: "Use the ActiveDirectoryUtils module to query AD users, find last-logon workstations, manage group membership, and disable stale computer accounts — plus repair a broken workstation domain trust."
 ---
 
 The Active Directory scripts give you a consistent, credential-aware way to query and manage your domain without opening the ADUC console. Most scripts import the `ActiveDirectoryUtils` module automatically, which handles RSAT validation, limited-mode fallback, and elevation prompts so you can focus on the task at hand. One exception is `Repair-DomainTrust.ps1` (below), which needs neither RSAT nor the module.
