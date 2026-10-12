@@ -1,10 +1,10 @@
 ---
 title: "Active Directory Management with PowerShell Scripts"
 sidebarTitle: "Active Directory"
-description: "Use the ActiveDirectoryUtils module to query AD users, find last-logon workstations, manage group membership, and disable stale computer accounts."
+description: "Use the ActiveDirectoryUtils module to query AD users, find last-logon workstations, manage group membership, and disable stale computer accounts — plus repair a broken workstation domain trust."
 ---
 
-The Active Directory scripts give you a consistent, credential-aware way to query and manage your domain without opening the ADUC console. All scripts import the `ActiveDirectoryUtils` module automatically, which handles RSAT validation, limited-mode fallback, and elevation prompts so you can focus on the task at hand.
+The Active Directory scripts give you a consistent, credential-aware way to query and manage your domain without opening the ADUC console. Most scripts import the `ActiveDirectoryUtils` module automatically, which handles RSAT validation, limited-mode fallback, and elevation prompts so you can focus on the task at hand. One exception is `Repair-DomainTrust.ps1` (below), which needs neither RSAT nor the module.
 
 ## The ActiveDirectoryUtils Module
 
@@ -206,3 +206,57 @@ Wraps `Get-ComputerLastLogon` from the module and displays the most recent `Last
 ```
 
 **Output fields:** `ComputerName`, `DomainController`, `LastLogon`
+
+---
+
+### Repair-DomainTrust.ps1
+
+<Note>
+  Unlike every other script on this page, `Repair-DomainTrust.ps1` needs **no RSAT and no `ActiveDirectoryUtils` module**. Run it directly in an elevated Windows PowerShell 5.1 session on the broken PC itself.
+</Note>
+
+Diagnoses and repairs a broken workstation-to-domain trust — the "The trust relationship between this workstation and the primary domain failed" error. It works out which domain the PC is joined to on its own, then walks through gated phases, stopping at the first one that fails with a plain-English next step:
+
+1. **Preflight** — elevated? domain-joined? which domain?
+2. **Network** — every up adapter's IPv4 address, gateway, and DNS servers; flags public DNS, APIPA addresses, Wi-Fi-only, and missing internal DNS.
+3. **DC discovery** — finds a writable domain controller via the DC locator and the DC SRV records in DNS, and learns the NetBIOS domain name. This DC is pinned — every later step talks to the same one.
+4. **Time** — measures the PC's clock against the pinned DC. Kerberos fails above a 5-minute skew; with your OK, the clock is stepped to match.
+5. **Secure channel** — tests the secure channel against the pinned DC.
+6. **Repair** — if broken, resets the machine account password with `Test-ComputerSecureChannel -Repair`, falling back to `Reset-ComputerMachinePassword`, using a domain account you supply.
+7. **Verify** — re-tests the secure channel two independent ways and offers a reboot.
+
+```powershell
+# Diagnose and repair interactively — prompts for credentials if the channel is broken
+.\Scripts\ActiveDirectory\Repair-DomainTrust.ps1
+
+# Report-only — runs phases 1-5 and changes nothing
+.\Scripts\ActiveDirectory\Repair-DomainTrust.ps1 -DiagnoseOnly
+
+# Supply a domain account up front instead of being prompted later
+.\Scripts\ActiveDirectory\Repair-DomainTrust.ps1 -Credential (Get-Credential)
+
+# Preview every change (clock step, repair) without making it
+.\Scripts\ActiveDirectory\Repair-DomainTrust.ps1 -WhatIf
+```
+
+<ParamField path="-Credential" type="PSCredential">
+  A domain account allowed to reset this computer's machine account password. When omitted, the script prompts for one with the username pre-filled as `<NETBIOS-DOMAIN>\`. The password is never written to the screen, the log, or disk.
+</ParamField>
+
+<ParamField path="-DiagnoseOnly" type="switch">
+  Runs phases 1-5 only (preflight through secure-channel test) and changes nothing — no clock change, no credential prompt, no repair, no reboot.
+</ParamField>
+
+<Warning>
+  The script never unjoins or rejoins the domain. Every run is logged to `C:\ProgramData\DomainTrustRepair\Repair-DomainTrust_<COMPUTERNAME>_<yyyyMMdd-HHmmss>.log`.
+</Warning>
+
+**Exit codes:** `0` healthy (channel already good) · `1` repaired · `2` not elevated · `3` not domain-joined · `4` network/DC unreachable · `5` time skew unresolved · `6` broken but not repaired (`-DiagnoseOnly`, `-WhatIf`, or the credential prompt was cancelled) · `7` repair failed (both repair methods, or verification, failed) · `8` unexpected error.
+
+<Tip>
+  The first domain logon after the reboot must happen while connected to the corporate network (wired or VPN) so the PC can reach a domain controller.
+</Tip>
+
+<Tip>
+  To field-test a change to this script, run `Tests/ActiveDirectory/Invoke-RepairDomainTrustFieldTest.ps1` on a **spare** PC — it breaks that PC's trust on purpose, has the script repair it, verifies the clock-skew fix, and zips the results. It's excluded from CI.
+</Tip>
