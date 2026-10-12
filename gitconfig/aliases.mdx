@@ -28,7 +28,11 @@ When you run `git alias` as a subprocess, selecting an alias copies `git <alias>
 
 ### Ctrl-G Shell Keybinding
 
-The installer adds a `Ctrl-G` keybinding to your shell (bash/zsh) and PowerShell profile. Press `Ctrl-G` at the prompt to open the browser; the alias you pick is typed directly onto your command line, ready to run or edit.
+The installer adds a `Ctrl-G` keybinding to your shell (bash/zsh) and, on Windows, to **both** PowerShell profiles — Windows PowerShell 5.1 and PowerShell 7 (`Documents\WindowsPowerShell\profile.ps1` and `Documents\PowerShell\profile.ps1`). Press `Ctrl-G` at the prompt to open the browser; the alias you pick is typed directly onto your command line, ready to run or edit.
+
+<Note>
+  The bash widget needs **bash 4.0+**. macOS ships `/bin/bash` 3.2, where the widget prints a one-line note instead of binding `Ctrl-G` — use zsh (the macOS default) or Homebrew's bash (`brew install bash`) to get the keybinding. `git alias` itself works fine either way.
+</Note>
 
 Enable it manually if the installer did not set it up:
 
@@ -103,16 +107,24 @@ Use these aliases to create branches, sync with remotes, and keep your local his
 | Alias | Description |
 | --- | --- |
 | `git nb <name>` | Create and switch to a new branch (`switch -c`). |
-| `git pushf` | Force-push the current branch safely using `--force-with-lease`. Refuses to clobber others' work. |
+| `git pushf` | Force-push safely: `push --force-with-lease --force-if-includes` (requires Git 2.30+). Refuses if the remote has commits you haven't integrated; `--force-if-includes` keeps the lease armed even after a background fetch (IDE autofetch, `git main`, `git branches`). |
 | `git sync` | Update the current branch with `pull --rebase --autostash`. |
-| `git start <issue#>` | Create a conventionally named branch from a GitHub issue's title. Requires `gh` CLI. |
+| `git start <issue#>` | Start or resume the branch for a GitHub issue: `<type>/<issue#>-<title-slug>` (`fix/`, `docs/`, or `feat/` by default, from the issue's labels). Requires `gh` CLI. |
 | `git branches` | Fetch and track all remote branches locally. |
-| `git cleanup` | Delete local branches whose remote has been deleted. |
-| `git main` | Switch to `main` with fetch, pull, and branch cleanup. |
+| `git cleanup` | Delete local branches whose remote has been deleted (`--force` also removes merged local-only branches). |
+| `git main` | Switch to the default branch: fetch, then fast-forward only (never a generic pull/merge), then branch cleanup. Repos with no remote skip the fetch and fast-forward. |
 | `git main --all` | Run the above for every Git repository in the immediate subdirectories of the **Scripts root** (alias: `-a`). |
 
 <Note>
-  `git main --all` scans the immediate subdirectories of the derived Scripts root — the parent directory of the `gitconfig` repo itself (`~/Documents/Scripts` on a standard install) — regardless of your current working directory. It no longer scans the current directory's subdirectories.
+  `git main` and `git cleanup` work from any worktree: if the default branch is checked out in a different worktree than the one you're in, your current worktree stays put while the default branch is fast-forwarded (only if that worktree is clean) and cleaned up from there. If your own branch is gone upstream, you get a `git worktree remove <path>` hint instead.
+</Note>
+
+<Note>
+  The Scripts root that `git main --all` scans is **configurable** — set `git localconfig gitconfig.scriptsRoot ~/code` to point it somewhere other than the derived default (the parent directory of the `gitconfig` clone, `~/Documents/Scripts` on a standard install). `git main --all` refuses (exit 1) to sweep your home folder, its parent (`/home`, `/Users`, `C:\Users`), or a filesystem root — guarding against a clone placed at e.g. `~/gitconfig` — unless you pass `--force`.
+</Note>
+
+<Note>
+  The Python-backed aliases (`git alias`, `start`, `cleanup`, `main`, `skill`, `issues`) validate their arguments: `-h`/`--help` prints a one-line usage and exits `0`; any other unrecognised argument prints usage to stderr and exits `2`. There is no `--dry-run` on any of them.
 </Note>
 
 **Examples:**

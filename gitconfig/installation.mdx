@@ -41,7 +41,7 @@ cd ~/Documents/Scripts/gitconfig
 
     - Generates `~/.gitconfig` from the template with the correct repository path substituted.
     - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py`.
-    - Generates `~/.gitconfig.local` with machine-specific defaults (SSH signing key, `safe.directory`, etc.).
+    - Generates `~/.gitconfig.local` with machine-specific defaults: an SSH signing key and `commit.gpgsign` when available, `core.editor` (when VS Code is present and the session isn't SSH/headless), and `safe.directory` entries for this clone plus anything listed in `~/.config/gitconfig/safe-directories`.
     - Installs `rich` and `textual` via pip.
     - Registers a launchd login agent that runs `git selfupdate` at each login.
     - Adds the `Ctrl-G` alias browser keybinding to your `~/.bashrc` or `~/.zshrc`.
@@ -58,7 +58,7 @@ cd ~/Documents/Scripts/gitconfig
     bash scripts/linux\ version/install.sh --force
     ```
 
-    The Linux installer performs the same steps as macOS, but registers a **cron job** instead of a launchd agent for the login-time auto-sync.
+    The Linux installer performs the same steps as macOS, but for the auto-sync job it registers a **systemd user timer** (`~/.config/systemd/user/gitconfig-update.{service,timer}`, daily, `Persistent=true`) whenever `systemctl --user` reaches a running user manager. In containers, WSL without systemd, or when there's no user session, it falls back to a daily cron job instead — installing one removes the other. A user timer only runs while you're logged in unless linger is enabled; on a headless machine, run `loginctl enable-linger $USER`.
   </Tab>
   <Tab title="Windows">
     Open PowerShell **as Administrator** (the script will auto-elevate if you forget), then run:
@@ -74,7 +74,7 @@ cd ~/Documents/Scripts/gitconfig
     - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py` (requires Admin).
     - Generates `~/.gitconfig.local`.
     - Installs `rich` and `textual` via pip.
-    - Registers a **Task Scheduler** task (`Update-GitConfig`) that fires at login.
+    - Registers a **Task Scheduler** task named `GitConfig Pull at Login` that fires at login.
     - Adds the `Ctrl-G` alias browser keybinding to your PowerShell profile (`$PROFILE.CurrentUserAllHosts`).
 
     **Skip the scheduled task:**
@@ -99,7 +99,7 @@ The macOS/Linux and Windows installers expose matching flags for granular contro
 | --- | --- |
 | `-f`, `--force` | Overwrite existing files without prompting. Use this for fresh installs and re-installs. |
 | `--reinstall` | Tear down the previous install first (runs `cleanup-gitconfig.sh --force`; removed files are still backed up) before reinstalling. |
-| `--no-scheduler` | Skip the auto-sync job (the launchd agent on macOS, the cron job on Linux). `--no-launchd` and `--no-cron` are accepted as synonyms. |
+| `--no-scheduler` | Skip the auto-sync job (the launchd agent on macOS, the systemd user timer or cron job on Linux). `--no-launchd` and `--no-cron` are accepted as synonyms. |
 | `-h`, `--help` | Print the full usage summary and exit. |
 
 **Windows** (`scripts/windows version/install.ps1`):
@@ -113,6 +113,10 @@ The macOS/Linux and Windows installers expose matching flags for granular contro
 
 <Note>
   A plain re-run (no `--reinstall`/`-Reinstall`) now converges in place instead of tearing everything down first: existing files that differ are backed up and regenerated, and links that already point into the repo are left alone. Full cleanup only runs when you explicitly pass `--reinstall` or `-Reinstall`.
+</Note>
+
+<Note>
+  On macOS/Linux, the installer and `cleanup-gitconfig.sh` exit `1` on a step failure. On an unattended run (no terminal attached to answer a prompt), a missing answer counts as "no" rather than hanging. On Windows, `install.ps1` reports step failures explicitly instead of continuing silently, and keeps your existing files intact if the install or a cleanup fails partway through.
 </Note>
 
 You can also run the individual sub-scripts directly:
@@ -147,7 +151,9 @@ Open `~/.gitconfig.local` at any time with:
 git localconfig
 ```
 
-Put any setting that should only apply to this machine in that file — a different signing key, a work email address, or `safe.directory` entries for mounted paths. The file is never overwritten by the install scripts or the auto-update job.
+Put any setting that should only apply to this machine in that file — a different signing key, a work email address, or `safe.directory` entries for mounted paths. The auto-update job never touches it, but **regenerating it (`install.sh --force`, or `Initialize-LocalConfig.ps1 -Force` on Windows) now preserves what you added** — your own entries land in a "Your settings" section — while rebuilding only the signing, credential-helper, and `core.excludesfile` settings, printing the names of any that changed.
+
+To trust additional paths beyond this clone (a network share, a repo owned by another account) as `safe.directory`, list them in `~/.config/gitconfig/safe-directories` — one path per line, blank lines and `#` comments are skipped — then regenerate `~/.gitconfig.local` as above. On Windows, write UNC paths in git's `%(prefix)///server/share/repo` form.
 
 ## Auto-Update Job
 
@@ -155,7 +161,9 @@ Put any setting that should only apply to this machine in that file — a differ
   The auto-update job runs at every login. It performs `git pull` on the gitconfig repository, and if `.gitconfig.template` changed in that pull, regenerates `~/.gitconfig` automatically. It also prunes merged branches in the repository to keep things tidy. Run the same operation on demand at any time with `git selfupdate`.
 </Note>
 
-Before any generated or linked file is replaced, the previous version is saved as a timestamped backup (`<file>.bak.YYYYMMDD-HHMMSS`), keeping the newest 5 backups per file. Set the `GITCONFIG_BACKUP_KEEP` environment variable to change that limit — `0` keeps all of them. A symlink that already points into the repo is left alone; a stale one is replaced without a backup, so re-running never creates new backups for it. `~/.gitconfig.local` is never modified by the install scripts or the auto-update job.
+Before any generated or linked file is replaced, the previous version is saved as a timestamped backup (`<file>.bak.YYYYMMDD-HHMMSS`), keeping the newest 5 backups per file. Set the `GITCONFIG_BACKUP_KEEP` environment variable to change that limit — `0` keeps all of them. A symlink that already points into the repo is left alone; a stale one is replaced without a backup, so re-running never creates new backups for it.
+
+Your original pre-install file is also kept permanently: the first time a file is backed up, a copy is saved as `<file>.pre-gitconfig` (for example `~/.gitconfig.pre-gitconfig`). That copy is never pruned or overwritten by the 5-backup rotation above, so you can always recover the file you had before installing. (On an install from before this copy existed, the oldest surviving timestamped backup is used instead.)
 
 ## Verifying the Installation
 
