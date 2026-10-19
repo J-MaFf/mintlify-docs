@@ -1,7 +1,7 @@
 ---
-title: "Bulk Convert Legacy .xls Files to .xlsx with PowerShell"
+title: "File Conversion and Transfer Scripts for PowerShell"
 sidebarTitle: "File Management"
-description: "Recursively convert legacy .xls workbooks to .xlsx (or .xlsm for macro-bearing files) via Excel COM automation, with a full audit-trail manifest."
+description: "Bulk-convert legacy .xls workbooks and HEIC photos, and copy a user's folders from one PC to another."
 ---
 
 `Convert-XlsToXlsx.ps1` bulk-converts legacy `.xls` workbooks to the modern `.xlsx`/`.xlsm` format using Excel COM automation. It is built to run unattended against large, messy file shares — it never overwrites an existing converted sibling, preserves file timestamps, and only deletes the original `.xls` after verifying the converted file actually exists, is non-zero, and starts with the correct `PK` zip signature.
@@ -80,4 +80,60 @@ description: "Recursively convert legacy .xls workbooks to .xlsx (or .xlsm for m
 
 <Note>
   The script runs interactively only. Omitting `-Path` prompts for a folder in an interactive session; a non-interactive session (scheduled task, CI) is never prompted — it fails immediately and tells you to pass `-Path` explicitly, so a scheduled run can't hang forever waiting for input that will never come.
+</Note>
+
+---
+
+## Convert-HeicToJpg.ps1
+
+Batch-converts the HEIC photos in a folder to JPG using `ffmpeg`, deleting each original only after its conversion succeeds, and creates Desktop shortcuts to the script and its target folder on first run.
+
+<Warning>
+  Requires **ffmpeg** on `PATH` with HEIC/HEIF decoding support. A missing or non-HEIC-capable build is detected up front, with install/troubleshooting guidance printed instead of a bare failure.
+</Warning>
+
+<ParamField path="-FolderPath" type="string" default="%USERPROFILE%\convert">
+  Folder to scan for `.heic` files. The default folder is created automatically if it doesn't already exist.
+</ParamField>
+
+<ParamField path="-DryRun" type="switch">
+  Preview mode — converts and deletes nothing. With the default folder, it still creates the folder and refreshes the Desktop shortcuts.
+</ParamField>
+
+```powershell
+# Convert everything in the default %USERPROFILE%\convert folder
+.\Scripts\FileManagement\Convert-HeicToJpg.ps1
+
+# Preview a specific folder without converting or deleting anything
+.\Scripts\FileManagement\Convert-HeicToJpg.ps1 -FolderPath 'D:\Photos\iPhone' -DryRun
+```
+
+---
+
+## Copy-UserFiles.ps1
+
+Copies a user's `Desktop`, `Documents`, `Downloads`, `Pictures`, and `Videos` folders from a source PC to a target PC, using admin credentials retrieved from the 1Password CLI.
+
+<ParamField path="-Source" type="string">
+  Name of the source computer.
+</ParamField>
+
+<ParamField path="-Target" type="string">
+  Name of the target computer.
+</ParamField>
+
+<ParamField path="-User" type="string">
+  User name whose folders are being transferred.
+</ParamField>
+
+<ParamField path="-domain" type="string">
+  Domain to retrieve credentials for: `KFI`, `JFC`, or `KMS`.
+</ParamField>
+
+```powershell
+.\Scripts\FileManagement\Copy-UserFiles.ps1 -Source "SourcePC" -Target "TargetPC" -User "jdoe" -domain "KFI"
+```
+
+<Note>
+  Set `OP_ITEM_KFI` / `OP_ITEM_JFC` / `OP_ITEM_KMS` to the Employee-vault 1Password item (its ID or name) for each domain before running — no 1Password item IDs are hardcoded in the script.
 </Note>

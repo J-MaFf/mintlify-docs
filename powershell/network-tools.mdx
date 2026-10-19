@@ -14,6 +14,7 @@ The network scripts cover the day-to-day connectivity and troubleshooting tasks 
 | `Test-ConnectionWithChime.ps1` | — | Continuously pings a hardcoded target every second and plays an audio beep on each successful reply. Edit `$pingTarget` at the top of the script to set the address. |
 | `Get-ComputersViaIP.ps1` | `-ips` | Resolves one or more IP addresses to hostnames via DNS and returns a sorted table. |
 | `Reset-IPConfig.ps1` | `-computersFilePath` | Runs `ipconfig /release` and `/renew` on a list of remote machines via PsExec. |
+| `Get-DhcpLeases.ps1` | — | Dumps every IPv4 lease (server, scope, IP, host name, client ID) from every DHCP server authorized in the domain. |
 | `Repair-RDP.ps1` | — | Writes a registry key that disables UDP transport for RDP, resolving session-drop issues. |
 | `Test-MacAddress.ps1` | `-MacAddress` | Checks the local ARP cache to determine whether a MAC address is already in use. |
 | `Install-OpenSSHServer.ps1` | `-ServerName`, `-Port`, `-Credential` | Installs and configures OpenSSH Server on a local or remote Windows machine. |
@@ -96,6 +97,21 @@ The script:
 <Warning>
   `Reset-IPConfig` requires **PsExec** (`psexec.exe`) to be available in your `PATH` or the same directory as the script. Resetting a remote machine's IP temporarily disrupts its network connection — plan accordingly.
 </Warning>
+
+---
+
+## Get-DhcpLeases.ps1
+
+Outputs every IPv4 lease (server, scope, IP address, host name, client ID) from every DHCP server authorized in Active Directory, via `Get-DhcpServerInDC`.
+
+```powershell
+# Expect thousands of rows on a large network — pipe to Export-Csv
+.\Scripts\Network\Get-DhcpLeases.ps1 | Export-Csv -Path 'C:\reports\dhcp-leases.csv' -NoTypeInformation
+```
+
+<Note>
+  Requires the **DhcpServer** RSAT PowerShell module and permission to query every DHCP server authorized in the domain. No parameters — it always enumerates every authorized server's every scope.
+</Note>
 
 ---
 
