@@ -120,6 +120,10 @@ Use these aliases to create branches, sync with remotes, and keep your local his
 </Note>
 
 <Note>
+  `git main --all` skips a linked worktree directly under the Scripts root (for example a `git worktree add ../repo-feature` sibling): it's reported as **Skipped (worktree)** and left untouched. Update it from its primary worktree instead.
+</Note>
+
+<Note>
   The Scripts root that `git main --all` scans is **configurable** — set `git localconfig gitconfig.scriptsRoot ~/code` to point it somewhere other than the derived default (the parent directory of the `gitconfig` clone, `~/Documents/Scripts` on a standard install). `git main --all` refuses (exit 1) to sweep your home folder, its parent (`/home`, `/Users`, `C:\Users`), or a filesystem root — guarding against a clone placed at e.g. `~/gitconfig` — unless you pass `--force`.
 </Note>
 
@@ -203,10 +207,10 @@ Use these aliases to manage the configuration itself.
 </Note>
 
 <Note>
-  `git skill list`, `git skill sync`, `git skill status`, `git skill diff`, and `git skill publish` all depend on the separate [`claude-skills`](https://github.com/J-MaFf/claude-skills) repo at `~/.claude/skills`. That repo supplies both the skills and the wrapper scripts these aliases drive. If the directory is missing, each subcommand exits with an actionable error pointing you at the setup commands:
+  `git skill list`, `git skill sync`, `git skill status`, `git skill diff`, and `git skill publish` all depend on the separate [`agent-skills`](https://github.com/J-MaFf/agent-skills) repo at `~/.claude/skills`. That repo supplies both the skills and the wrapper scripts these aliases drive. If the directory is missing, each subcommand exits with an actionable error pointing you at the setup commands:
 
   ```bash
-  git clone https://github.com/J-MaFf/claude-skills.git ~/.claude/skills
+  git clone https://github.com/J-MaFf/agent-skills.git ~/.claude/skills
   # then run its per-OS setup, e.g.:  sh ~/.claude/skills/scripts/setup-macos.sh
   ```
 
