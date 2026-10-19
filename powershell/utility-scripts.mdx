@@ -1,0 +1,48 @@
+---
+title: "Small Utility Scripts for Windows Administration"
+sidebarTitle: "Utility Scripts"
+description: "Add a folder to PATH, keep the Windows Search service running, and remove preinstalled Windows bloatware apps."
+---
+
+These are small, single-purpose scripts without the broader parameter surface of the rest of the toolkit — each does one thing with little or no configuration.
+
+## Add-PathEntry.ps1
+
+Run directly, it takes no parameters and permanently adds **its own folder** to the current user's `PATH` (skipped if already present).
+
+```powershell
+# Adds the folder this script lives in to your user PATH
+.\Scripts\Misc\Add-PathEntry.ps1
+```
+
+<Tip>
+  Dot-source it instead to reuse its function for any folder: `. .\Scripts\Misc\Add-PathEntry.ps1`, then call `Add-ToEnvironmentPath -PathToAdd 'C:\MyScripts' -Scope User` (or `-Scope System`, which needs an elevated session).
+</Tip>
+
+---
+
+## Watch-Services.ps1
+
+Watches the Windows Search service (`WSearch`) every 60 seconds and restarts it if it has stopped. Runs until the window is closed.
+
+```powershell
+.\Scripts\Misc\Watch-Services.ps1
+```
+
+<Warning>
+  Only monitors `WSearch` — it is not a general service watchdog. It clears and writes its log to a hardcoded `C:\Users\admin-jmaffiola\Desktop\Scripts\Service-Monitor` folder and calls `Write-EventLog`, so run it under Windows PowerShell 5.1, not PowerShell 7.
+</Warning>
+
+---
+
+## Uninstall-Bloatware.ps1
+
+Removes 25 preinstalled Appx apps for the current user — Xbox, Solitaire, Office Hub, Phone Link, Get Help/Tips, Groove/Movies, Weather, 3D Viewer, Mixed Reality, Skype, Wallet, Feedback Hub, Photos, Camera, Mail and Calendar, Alarms, Sound Recorder, Maps, and People.
+
+```powershell
+.\Scripts\Deployment\Uninstall-Bloatware.ps1
+```
+
+<Warning>
+  No parameters, no confirmation prompt, and no per-app opt-out — it removes every app in its list for the current user. Read the full list above before running it on a user's PC: **Photos, Camera, Mail/Calendar, and Maps** are removed too, not just the obvious Xbox/Solitaire-style bloat.
+</Warning>
