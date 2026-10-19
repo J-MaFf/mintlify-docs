@@ -235,3 +235,15 @@ Older versions of the installer used a per-user task named `WingetAppSetup-Sched
 </Note>
 
 </Accordion>
+
+<Accordion title="Warning: unsupported Windows (32-bit, or Windows 10 on ARM64)">
+
+Supported Windows is 10 and 11 on x64, and Windows 11 on ARM64. On 32-bit Windows or Windows 10 on ARM64, the script prints one warning near the start of the run and goes on anyway — it does not stop.
+
+**Why some apps fail there:**
+- **Google Drive** and **Git** have no 32-bit installer, so they fail on 32-bit Windows.
+- **Windows 10 on ARM64** cannot run x64-only installers, such as Google Drive's.
+
+**What to do:** Run the script on a supported Windows version (Windows 10/11 x64, or Windows 11 ARM64). If you must run it on an unsupported version, expect the apps above to fail and plan to install them another way.
+
+</Accordion>
