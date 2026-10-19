@@ -17,6 +17,7 @@ Getting started takes one command. Paste the one-liner into any PowerShell windo
 Before running the script, confirm your machine meets these requirements:
 
 - **Windows 10 21H2 (build 19044) or later** — Windows 11 is detected and fully supported.
+- **x64, or ARM64 on Windows 11** — 32-bit Windows and Windows 10 on ARM64 are unsupported. The installer prints one warning near the start and goes on anyway, but some apps may fail there: Google Drive and Git have no 32-bit installer, and Windows 10 on ARM64 cannot run x64-only installers such as Google Drive's. See [WinGet Issues](/troubleshooting/winget-issues) for details.
 - **At least 50 GB of free disk space** on the C: drive — recommended, not required. Low space produces a warning and the install proceeds.
 - **Internet access** — the script must reach `cdn.winget.microsoft.com` on port 443. Installation is blocked if this host is unreachable.
 - **PowerShell execution policy** — the one-liner sets `Unrestricted` for the current process only; nothing is changed system-wide.

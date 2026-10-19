@@ -14,8 +14,8 @@ The script installs the following ten applications. Each entry maps to a winget 
 |---|---|---|
 | 7-Zip | `7zip.7zip` | |
 | TightVNC | `GlavSoft.TightVNC` | |
-| Adobe Acrobat Reader 64-bit | `Adobe.Acrobat.Reader.64-bit` | |
-| Google Chrome | `Google.Chrome` | |
+| Adobe Acrobat Reader | `Adobe.Acrobat.Reader.64-bit` or `Adobe.Acrobat.Reader.32-bit` | Architecture-gated — see below |
+| Google Chrome | `Google.Chrome.EXE` | |
 | Google Drive | `Google.GoogleDrive` | |
 | Git | `Git.Git` | |
 | Bulk Crap Uninstaller | `Klocman.BulkCrapUninstaller` | |
@@ -25,7 +25,7 @@ The script installs the following ten applications. Each entry maps to a winget 
 
 ### Conditional apps
 
-Catalog entries may declare an applicability **condition** that is evaluated before any winget call. An app whose condition is falsy on the current machine is reported as `Skipping: <id> (not applicable: <reason>)` and counted as Skipped in the summary instead of being pointlessly installed. Dell Command Update is gated this way: it installs only when the machine reports a Dell manufacturer. Windows Terminal is gated too: winget can't self-update Windows Terminal from a session Windows Terminal itself is hosting, so that install is skipped when the script detects it's running inside a Windows Terminal tab. A condition that throws fails open — a warning, then a normal install — so a broken probe can never silently drop an app.
+Catalog entries may declare an applicability **condition** that is evaluated before any winget call. An app whose condition is falsy on the current machine is reported as `Skipping: <id> (not applicable: <reason>)` and counted as Skipped in the summary instead of being pointlessly installed. Dell Command Update is gated this way: it installs only when the machine reports a Dell manufacturer. Windows Terminal is gated too: winget can't self-update Windows Terminal from a session Windows Terminal itself is hosting, so that install is skipped when the script detects it's running inside a Windows Terminal tab. Adobe Acrobat Reader is gated on architecture: x64 PCs get `Adobe.Acrobat.Reader.64-bit`, while ARM64 and 32-bit (x86) PCs get `Adobe.Acrobat.Reader.32-bit` instead — Adobe publishes no 64-bit build for ARM, so ARM64 runs the 32-bit Reader under emulation. Exactly one of the two installs per PC, and the other always shows as skipped. A condition that throws fails open — a warning, then a normal install — so a broken probe can never silently drop an app.
 
 ## How it works
 
