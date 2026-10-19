@@ -61,6 +61,10 @@ A transcript of every run is written to `%LOCALAPPDATA%\PrinterInstall\Add-Netwo
   No admin rights needed — the script never checks for, requests, or requires administrator rights. It must run on the branch's own network (or a domain trust that reaches it); the print server isn't reachable otherwise. Exit codes: `0` = every selected printer connected or was already connected, or the user quit a menu without selecting anything; `1` = at least one printer failed, the supplied Company/Branch/Printer didn't match, or discovery failed.
 </Note>
 
+<Note>
+  Each connection gets a timeout based on whether a driver is already local: 120 seconds for a printer whose driver is already on the PC, or up to 600 seconds when Windows needs to set one up first. A connection still running after 5 seconds shows a progress banner and a once-a-minute "Still working" line, so a long driver install doesn't look stalled. If a connection times out, the script re-checks the printer list before reporting failure, since Windows can finish the connection just after the script gives up.
+</Note>
+
 ---
 
 ## Install-KfiPrinter.ps1
@@ -185,7 +189,13 @@ The script waits up to 30 seconds for the service to reach the `Stopped` state b
 
 ### Clearing a Stuck Print Queue
 
-If the spooler restarts but immediately stops again, a corrupted job in the spool folder is often the cause. Clear it manually before restarting:
+If the spooler restarts but immediately stops again, a corrupted job in the spool folder is often the cause. `Clear-PrintSpooler.ps1` automates the fix: it self-elevates, asks for a Y/N confirmation, then stops the Spooler service, clears `spool\PRINTERS`, and restarts it, reporting status or errors as it goes.
+
+```powershell
+.\Scripts\Printers\Clear-PrintSpooler.ps1
+```
+
+The equivalent manual steps, if you'd rather run them yourself:
 
 ```powershell
 # Stop the spooler, clear the queue, restart

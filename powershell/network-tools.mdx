@@ -13,6 +13,7 @@ The network scripts cover the day-to-day connectivity and troubleshooting tasks 
 | `Invoke-NetworkScan.ps1` | — | Simulates a network scan with randomized progress output. Useful for visual testing. |
 | `Test-ConnectionWithChime.ps1` | — | Continuously pings a hardcoded target every second and plays an audio beep on each successful reply. Edit `$pingTarget` at the top of the script to set the address. |
 | `Get-ComputersViaIP.ps1` | `-ips` | Resolves one or more IP addresses to hostnames via DNS and returns a sorted table. |
+| `Get-DhcpLeases.ps1` | — | Outputs every IPv4 lease (server, scope, IP, host name, client ID) on every DHCP server authorized in the domain. Needs the DhcpServer RSAT module. Expect thousands of rows; pipe to `Export-Csv`. |
 | `Reset-IPConfig.ps1` | `-computersFilePath` | Runs `ipconfig /release` and `/renew` on a list of remote machines via PsExec. |
 | `Repair-RDP.ps1` | — | Writes a registry key that disables UDP transport for RDP, resolving session-drop issues. |
 | `Test-MacAddress.ps1` | `-MacAddress` | Checks the local ARP cache to determine whether a MAC address is already in use. |
