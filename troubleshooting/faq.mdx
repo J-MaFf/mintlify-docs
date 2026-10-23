@@ -207,13 +207,13 @@ This page collects answers to questions that come up frequently across all of J-
 
   ```powershell
   Get-ScheduledTaskInfo -TaskName "GitConfig Pull at Login" | Select-Object LastRunTime, LastTaskResult
-  Get-Content "$HOME\Documents\Scripts\gitconfig\docs\update-gitconfig.log" -Tail 50
+  Get-Content "$HOME\Scripts\gitconfig\docs\update-gitconfig.log" -Tail 50
   ```
 
   On macOS, the launchd agent writes directly to the repo's log file instead of the system log:
 
   ```bash
-  tail -f ~/Documents/Scripts/gitconfig/docs/update-gitconfig.log
+  tail -f ~/Scripts/gitconfig/docs/update-gitconfig.log
   ```
 
   On Linux, check the systemd timer first — it's the default whenever `systemctl --user` works — and fall back to the cron log only if you're on the cron fallback (containers, WSL without systemd, no user session):
