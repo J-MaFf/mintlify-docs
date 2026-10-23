@@ -60,7 +60,7 @@ $creds = Get-Credential -UserName 'DOMAIN\admin-username'
 ```
 
 <Note>
-  Output is always written to a timestamped CSV under `%USERPROFILE%\Documents\Scripts\PowerShellScripts\Output\DateFormats\`. The script creates the directory automatically if it does not exist.
+  Output is always written to a timestamped CSV under `<PowerShellScripts repo>\Output\DateFormats\`. The script creates the directory automatically if it does not exist.
 </Note>
 
 ---
@@ -238,11 +238,11 @@ $creds = Get-Credential -UserName 'DOMAIN\admin-username'
 
 ## Output Files
 
-Both script families write timestamped CSV files automatically. Output paths are determined by each script at runtime and placed under your user profile's Documents folder.
+Both script families write timestamped CSV files automatically. Output paths are determined by each script at runtime and placed under the PowerShellScripts repo's own `Output\` folder.
 
 | Script Family | Default Output Directory |
 |---|---|
-| Date format scripts | `%USERPROFILE%\Documents\Scripts\PowerShellScripts\Output\DateFormats\` |
-| Region format scripts | `%USERPROFILE%\Documents\Scripts\PowerShellScripts\Output\RegionFormats\` |
+| Date format scripts | `<PowerShellScripts repo>\Output\DateFormats\` |
+| Region format scripts | `<PowerShellScripts repo>\Output\RegionFormats\` |
 
 The set scripts record both the **old** and **new** values for each user, giving you a complete before/after audit trail. Use the CSV files to verify changes or roll back individual users if needed.

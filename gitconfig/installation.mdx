@@ -22,11 +22,11 @@ Before you run the installer, make sure the following are present on your machin
 
 ## Clone the Repository
 
-Clone the gitconfig repository to the same location on every machine so the auto-update job always finds it. The recommended location is `~/Documents/Scripts/gitconfig`.
+Clone the gitconfig repository to the same location on every machine so the auto-update job always finds it. The recommended location is `~/Scripts/gitconfig` (`$HOME\Scripts\gitconfig` on Windows). Keep it outside `~/Documents`: cloud-backup clients that sync `~/Documents` also sync the `.git` folders inside it, and their conflict copies can break `git fetch`.
 
 ```bash
-git clone https://github.com/J-MaFf/gitconfig.git ~/Documents/Scripts/gitconfig
-cd ~/Documents/Scripts/gitconfig
+git clone https://github.com/J-MaFf/gitconfig.git ~/Scripts/gitconfig
+cd ~/Scripts/gitconfig
 ```
 
 ## Run the Installer
