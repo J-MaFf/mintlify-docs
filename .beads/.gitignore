@@ -83,3 +83,7 @@ bd.db
 issues.jsonl
 interactions.jsonl
 hooks/
+
+# Added by bd (missing required patterns)
+*.gate.lock*
+dolt-server-config.yaml
