@@ -139,7 +139,7 @@ If you've copied this toolkit to a shared machine or file server rather than wor
 
 It locks down the config folder (inheritance off, access restricted to SYSTEM, Administrators and the installing account), stores a fine-grained, read-only GitHub PAT there (file ACL restricted the same way), and registers a daily Scheduled Task — by default in the Task Scheduler folder `\AutoUpdate\` — that runs `Scripts\Deployment\Update-PowerShellScriptsRelease.ps1`. On each run, that script checks the GitHub Releases API against a local version marker and, if a newer release exists, downloads the release asset and swaps in `Scripts\`, `Modules\`, `README.md`, and `CHANGELOG.md` — with a full rollback to the previous state if anything in the swap fails. Re-running the installer for the same repo updates its task in place and migrates it out of any other Task Scheduler folder a prior install left it in (such as the Task Scheduler root, used before this moved under `\AutoUpdate\`).
 
-By default the task runs as the installing account (S4U logon, Highest run level). Two parameters change that:
+By default the task runs as the installing account (S4U logon, Highest run level). Two parameters let you change that or where the task lives:
 
 <ParamField path="-TaskCredential" type="PSCredential">
   Runs the task as a dedicated, non-admin account instead (e.g. `-TaskCredential (Get-Credential JFC\admin-task)`): stored-password logon at the Limited run level, with the password handed only to Task Scheduler and never printed or written to disk. That account is granted Modify on the deployment path and the config folder, and Read on the PAT file — but it must already hold the "Log on as a batch job" right on the machine, which the script neither grants nor checks.
