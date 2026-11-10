@@ -133,12 +133,27 @@ Import-Module .\Modules\UserDateFormatUtils\UserDateFormatUtils.psd1
 If you've copied this toolkit to a shared machine or file server rather than working from a clone, `Scripts\Deployment\Install-PowerShellScriptsAutoUpdate.ps1` sets up automatic updates from GitHub Releases so that deployed copy doesn't go stale:
 
 ```powershell
-# One-time setup — registers a daily Scheduled Task under the current account
-.\Scripts\Deployment\Install-PowerShellScriptsAutoUpdate.ps1
+# One-time setup — locks down a config folder, stores a PAT, and registers a daily Scheduled Task
+$pat = Read-Host -AsSecureString 'GitHub PAT'
+.\Scripts\Deployment\Install-PowerShellScriptsAutoUpdate.ps1 -DeploymentPath 'C:\Deploy\PowerShellScripts' -GitHubPat $pat
 ```
 
-It stores a fine-grained, read-only GitHub PAT (restricted to the installing account plus Administrators via file ACL) and registers a daily Scheduled Task that runs `Scripts\Deployment\Update-PowerShellScriptsRelease.ps1`. On each run, that script checks the GitHub Releases API against a local version marker and, if a newer release exists, downloads the release asset and swaps in `Scripts\`, `Modules\`, `README.md`, and `CHANGELOG.md` — with a full rollback to the previous state if anything in the swap fails.
+It locks the config folder `C:\ProgramData\<RepoName>AutoUpdate` down to SYSTEM, Administrators and the installing account, writes a fine-grained, read-only GitHub PAT to `github-pat.txt` in that folder (ACL restricted to the installing account and Administrators), then registers a daily Scheduled Task — in its own Task Scheduler folder `\AutoUpdate\<RepoName>AutoUpdate` — that runs `Scripts\Deployment\Update-PowerShellScriptsRelease.ps1`. On each run, that script checks the GitHub Releases API against a local version marker and, if a newer release exists, downloads the release asset and swaps in `Scripts\`, `Modules\`, `README.md`, and `CHANGELOG.md` — with a full rollback to the previous state if anything in the swap fails. Re-running the installer for the same repo updates the existing task in place (and migrates any root-level task from an older version) instead of duplicating it.
+
+<Tip>
+  `-Repository owner/name` points the installer at a different repo's releases entirely — for example `-Repository J-MaFf/OfficeConfigs` for a branch file share — so each repo gets its own task and config folder on the same machine. By default the task runs as the installing account; pass `-TaskCredential (Get-Credential JFC\admin-task)` to run it as a dedicated non-admin account instead (the account needs "Log on as a batch job" on that machine).
+</Tip>
 
 <Note>
   This is separate from cloning the repository with `git`. Use it for a deployed copy on a machine that isn't kept up to date with `git pull`.
 </Note>
+
+### Rolling It Out to Many Servers
+
+`Scripts\Deployment\Install-AutoUpdateOnServers.ps1` runs from an admin workstation and sets up the auto-updater above on a list of servers in one pass — handy for something like OfficeConfigs across a set of domain controllers:
+
+```powershell
+.\Scripts\Deployment\Install-AutoUpdateOnServers.ps1 -ComputerName dc1, dc2 -Repository J-MaFf/OfficeConfigs -RelativePath OfficeConfigs -GitHubPatReference 'op://Vault/Item/token'
+```
+
+It reads the GitHub token once (via `-GitHubPat` or 1Password with `-GitHubPatReference`), checks each server first — reachability, PowerShell version, the deployment share, and (with `-TaskCredential`) the task account's "Log on as a batch job" right — and skips anything that fails a check rather than touching it. Otherwise it installs the updater on the server, waits for `version.txt` to reach the release tag, and with `-ShortcutName` repoints shortcuts that point at the old deployment path. Pass `-WhatIf` to see the planned changes without applying them; it prints a per-server result table at the end and exits 1 if any server failed.
