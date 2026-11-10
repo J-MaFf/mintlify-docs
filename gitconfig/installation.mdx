@@ -72,10 +72,14 @@ cd ~/dev/repos/gitconfig
     - Checks for a Python interpreter right after elevation, before touching any files. If none is found it warns and asks `Continue anyway? (y/n)` — Python only powers the `git alias` browser, so the core install still works without it. `-Force` answers yes automatically.
     - Generates `~/.gitconfig` from the template.
     - Creates symlinks for `~/.gitignore_global` and `~/gitconfig_helper.py` (requires Admin).
-    - Generates `~/.gitconfig.local`.
+    - Generates `~/.gitconfig.local`, with an SSH signing key and `commit.gpgsign` when available, and `core.editor` when VS Code is present and the session isn't SSH/headless — same as macOS/Linux.
     - Installs `rich` and `textual` via pip.
     - Registers a **Task Scheduler** task named `GitConfig Pull at Login` that fires at login.
     - Adds the `Ctrl-G` alias browser keybinding to your PowerShell profile (`$PROFILE.CurrentUserAllHosts`).
+
+    <Tip>
+      If Windows OpenSSH is installed and the 1Password SSH agent's pipe (`\\.\pipe\openssh-ssh-agent`) is present, the installer also writes `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe` into `~/.gitconfig.local`. Git for Windows' bundled `ssh` can't reach that agent, so without this setting git over SSH fails with `Permission denied (publickey)` even though HTTPS still works. With no agent detected, the setting is left out and git keeps its bundled `ssh`. `-Force` keeps an existing `core.sshCommand` across regeneration, same as the signing key and editor settings; without `-Force` against an existing file, it only prints the command to add it if the agent is present and the file is missing it.
+    </Tip>
 
     **Skip the scheduled task:**
 
