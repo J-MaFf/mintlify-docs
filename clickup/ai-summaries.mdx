@@ -56,7 +56,7 @@ To use it, install Claude Code and sign in once with `claude login`. After that,
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `CLAUDE_SUMMARY_MODEL` | `claude-haiku-4-5-20251001` | Model id passed to `claude --model`. Accepts a full id or a CLI alias (`haiku`, `sonnet`, `opus`). Reused for ETA estimation. |
+| `CLAUDE_SUMMARY_MODEL` | `haiku` | Model id passed to `claude --model`. Accepts a full id or a CLI alias (`haiku`, `sonnet`, `opus`). The `haiku` default resolves to the newest Haiku release (`claude-haiku-5-5` today) with no code change — set a full id to pin one. Reused for ETA estimation. |
 | `CLAUDE_SUMMARY_TIMEOUT` | `120` | Per-call timeout in seconds. The extractor falls back to non-AI content if the CLI hangs longer. |
 
 ```bash
