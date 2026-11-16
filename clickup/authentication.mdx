@@ -1,7 +1,7 @@
 ---
 title: "Authenticate the ClickUp Task Extractor with Your API Key"
 sidebarTitle: "Authentication"
-description: "Supply your ClickUp API key via CLI flag, environment variable, or 1Password. The extractor tries each source in order before prompting you."
+description: "Supply your ClickUp API key via CLI flag, environment variable, an op-secret service account, or 1Password. The extractor tries each source in order before prompting you."
 ---
 
 The extractor resolves your ClickUp API key automatically by working through a priority chain — it checks each source in turn and stops as soon as it finds a valid key. If every automated source fails, it falls back to a secure interactive prompt so you are never locked out.
@@ -63,6 +63,27 @@ The extractor checks these sources in the order shown below.
     </Tip>
   </Tab>
 
+  <Tab title="op-secret (service account)">
+    When neither `--api-key` nor `CLICKUP_API_KEY` is set, and an `op-secret` wrapper (a 1Password service-account routing helper) is on `PATH`, the extractor tries it next — before any 1Password method that can raise a desktop unlock/approval prompt:
+
+    ```bash
+    # op-secret resolves these logical names by default
+    op-secret clickup-api-key
+    op-secret gemini-api-key
+    ```
+
+    Override the logical name it looks up with `CLICKUP_API_OP_SECRET_NAME` / `GEMINI_API_OP_SECRET_NAME` if your routing map uses different names:
+
+    ```bash
+    export CLICKUP_API_OP_SECRET_NAME=clickup-api-key
+    export GEMINI_API_OP_SECRET_NAME=gemini-api-key
+    ```
+
+    <Note>
+      If the `op-secret` wrapper is missing, times out, or doesn't have the logical name mapped, the extractor falls through silently to the 1Password Environment / SDK / CLI chain below.
+    </Note>
+  </Tab>
+
   <Tab title="1Password">
     The extractor integrates with 1Password at three levels, tried in this order:
 
@@ -116,10 +137,11 @@ The extractor checks these sources in the order shown below.
 |---|---|---|
 | 1 | `--api-key` CLI flag | Key passed at runtime |
 | 2 | `CLICKUP_API_KEY` environment variable | Variable exported in shell |
-| 3 | 1Password Environment (SDK, with optional beta-CLI re-exec) | `OP_ENVIRONMENT_ID` set (no secret reference required) |
-| 4 | 1Password SDK (service account) | `OP_SERVICE_ACCOUNT_TOKEN` set |
-| 5 | 1Password CLI (`op read`) | `op` installed and signed in, `CLICKUP_API_SECRET_REFERENCE` set |
-| 6 | Interactive prompt | Fallback — key entered at runtime |
+| 3 | `op-secret` service account | `op-secret` wrapper on `PATH`, resolves `clickup-api-key` (or `CLICKUP_API_OP_SECRET_NAME`) headlessly, no desktop prompt |
+| 4 | 1Password Environment (SDK, with optional beta-CLI re-exec) | `OP_ENVIRONMENT_ID` set (no secret reference required) |
+| 5 | 1Password SDK (service account) | `OP_SERVICE_ACCOUNT_TOKEN` set |
+| 6 | 1Password CLI (`op read`) | `op` installed and signed in, `CLICKUP_API_SECRET_REFERENCE` set |
+| 7 | Interactive prompt | Fallback — key entered at runtime |
 
 ## Project-local `.env` auto-load
 
