@@ -7,7 +7,7 @@ description: "Connect network printers with no admin rights, diagnose print erro
 The printer scripts handle the most common printer support scenarios in a Windows environment: letting a standard user connect a branch's shared network printers or install the KFI office IPP printers directly, diagnosing the notorious error 0x0000006ba, and restarting a hung Print Spooler service.
 
 <Warning>
-  `Debug-PrintError.ps1` and `Repair-PrintSpooler.ps1` require an **elevated (Administrator) PowerShell session**. `Add-NetworkPrinter.ps1` and `Install-KfiPrinter.ps1` are the opposite by design — they run as a standard user and never elevate, so a driver that would need an admin install is reported, not silently attempted.
+  `Debug-PrintError.ps1` and `Repair-PrintSpooler.ps1` require an **elevated (Administrator) PowerShell session**. `Add-NetworkPrinter.ps1` and `Install-GrandGenevaPrinters.ps1` are the opposite by design — they run as a standard user and never elevate, so a driver that would need an admin install is reported, not silently attempted.
 </Warning>
 
 ---
@@ -65,17 +65,25 @@ A transcript of every run is written to `%LOCALAPPDATA%\PrinterInstall\Add-Netwo
   Connecting to a printer whose driver isn't already installed on this PC can take several minutes while Windows sets up the driver, so that first connect is allowed 10 minutes rather than the usual 2 — a line says so before it starts. Any connect still running after 5 seconds shows a progress banner plus a "Still working" line once a minute, so a long wait never looks like a stall. If the time limit is reached, the script checks the local printer list once more before reporting failure, since the connection can finish just after the script stops waiting.
 </Note>
 
+<Note>
+  When discovery comes back access denied — for example a KMS PC choosing KFI Walworth — the script names the print server and the refused account, and offers to sign in with an account from the branch's domain instead of reporting it as a network problem. That sign-in is saved in Windows Credential Manager for the server (like `cmdkey /add`) so the printers keep working afterwards; a sign-in the server still refuses is removed again at once, and the script gives up after three refused sign-ins.
+</Note>
+
 ---
 
-## Install-KfiPrinter.ps1
+## Install-GrandGenevaPrinters.ps1
 
 Installs the KFI01 and/or KFI02 HP MFP M776 printers as direct IPP queues, with no administrator rights and nothing pre-staged by IT. On Windows 11 24H2 or later it calls the WinRT `Windows.Devices.Printers.IppPrintDeviceManager` API — the same one Settings uses — and reports the result automatically. On older Windows (or when that API is unavailable) it falls back to opening Settings at the printers page with the exact numbered steps to follow, then watches the printer list until the new queue appears (or times out after five minutes).
+
+<Note>
+  Formerly `Install-KfiPrinter.ps1`. The script, its `.bat` launcher, and its tests were renamed — if you have a copy downloaded from Google Drive, replace it with the renamed pair.
+</Note>
 
 ### Usage
 
 ```powershell
-# Double-click Install-KfiPrinter.bat, or run the script directly:
-.\Scripts\Printers\Install-KfiPrinter.ps1
+# Double-click Install-GrandGenevaPrinters.bat, or run the script directly:
+.\Scripts\Printers\Install-GrandGenevaPrinters.ps1
 
 # Shows a menu (1 = KFI01, 2 = KFI02, 3 = both, Q = quit)
 ```
@@ -86,10 +94,10 @@ Installs the KFI01 and/or KFI02 HP MFP M776 printers as direct IPP queues, with 
 
 ```powershell
 # Skip the menu
-.\Scripts\Printers\Install-KfiPrinter.ps1 -PrinterName All
+.\Scripts\Printers\Install-GrandGenevaPrinters.ps1 -PrinterName All
 ```
 
-A transcript of every run is written to `%LOCALAPPDATA%\KfiPrinterInstall\Install-KfiPrinter_<yyyyMMdd-HHmmss>.log`.
+A transcript of every run is written to `%LOCALAPPDATA%\GrandGenevaPrintersInstall\Install-GrandGenevaPrinters_<yyyyMMdd-HHmmss>.log`.
 
 <Note>
   No admin rights needed — the script never checks for, requests, or requires administrator rights. The PC must be on the KFI office network (not VPN or guest Wi-Fi). Exit codes: `0` = every selected printer is installed (or was already installed); `2` = no failures, but at least one printer needs the Settings steps finished by hand; `1` = at least one printer failed.
