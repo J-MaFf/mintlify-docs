@@ -95,6 +95,39 @@ If the PS7 bootstrap can't reach GitHub because the shared public IP is being ra
 
 </Accordion>
 
+<Accordion title="PowerShell 7 stays on the MSI release after installation">
+
+The bootstrap installs the newest PowerShell 7 release that still ships an MSI (currently 7.6) when it needs to find or install `pwsh` from Windows PowerShell 5.1. PowerShell 7.7 and later ship **only** as an MSIX, and winget cannot upgrade an existing MSI install to an MSIX-only release in place — so once 7.7+ is current, the bootstrap swaps the MSI for the MSIX itself after the relaunched PowerShell 7 run ends.
+
+**What the script does automatically**, in order, once it detects a newer MSIX-only release:
+1. Provisions the `Microsoft.PowerShell` MSIX for every user on the machine.
+2. Registers the MSIX for your account and confirms its `pwsh.exe` reports the newer version.
+3. Only then removes the 7.6 MSI with `msiexec /x`.
+
+A SYSTEM run never does the swap — the SYSTEM code path only knows how to find the MSI, so it leaves things as they are. In every case, a failed step leaves the MSI in place rather than risk a machine with no working `pwsh`, and prints manual steps.
+
+**Messages you may see, and what they mean:**
+
+| Message | Meaning |
+|---|---|
+| `...could not be provisioned, so PowerShell 7 stays on the MSI release.` | The MSIX provisioning step (DISM/winget) failed. |
+| `...is provisioned but not registered for this account...` | The MSIX is on the machine but your account hasn't registered it yet — sign out and back in, then remove the MSI yourself. |
+| `...did not start and report that version, so the MSI is kept.` | The newly registered MSIX's `pwsh.exe` didn't launch, or reported an older version than expected. |
+| `...MSI's product code was not found, so the MSI is left as it is.` | The swap can't identify the installed MSI to remove it — remove it from **Apps > Installed apps** instead. |
+| `...MSI could not be removed (msiexec exit code ...), so the MSI and the MSIX are both installed.` | `msiexec /x` failed; both packages are now present. |
+| `...winget did not report the newest PowerShell version, so no newer MSIX was looked for.` | The version lookup itself failed (e.g. transient winget error), so the script couldn't tell whether a swap was even needed. |
+
+**What to do:** from an elevated Windows PowerShell session, swap by hand:
+
+```powershell
+winget uninstall --id Microsoft.PowerShell --exact
+winget install --id Microsoft.PowerShell --exact
+```
+
+This is safe to run even if you're not sure which release is currently installed — winget installs whichever is newest.
+
+</Accordion>
+
 <Accordion title="Windows Terminal install is skipped">
 
 If the summary shows `Skipping: Microsoft.WindowsTerminal (not applicable: ...)`, this is expected, not a failure.
