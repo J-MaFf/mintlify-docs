@@ -97,7 +97,7 @@ If the PS7 bootstrap can't reach GitHub because the shared public IP is being ra
 
 <Accordion title="PowerShell 7 stays on the MSI release after installation">
 
-The bootstrap installs the newest PowerShell 7 release that still ships an MSI (currently 7.6) when it needs to find or install `pwsh` from Windows PowerShell 5.1. PowerShell 7.7 and later ship **only** as an MSIX, and winget cannot upgrade an existing MSI install to an MSIX-only release in place — so once 7.7+ is current, the bootstrap swaps the MSI for the MSIX itself after the relaunched PowerShell 7 run ends.
+When the bootstrap has to install `pwsh` itself from Windows PowerShell 5.1 (no existing install was found), it gets the newest PowerShell 7 release that still ships an MSI (currently 7.6). PowerShell 7.7 and later ship **only** as an MSIX, and winget cannot upgrade an existing MSI install to an MSIX-only release in place — so once 7.7+ is current, the bootstrap swaps the MSI it just installed for the MSIX itself, after the relaunched PowerShell 7 run ends. This only applies to a `pwsh` the bootstrap installed in this run; it never touches a pre-existing installation.
 
 **What the script does automatically**, in order, once it detects a newer MSIX-only release:
 1. Provisions the `Microsoft.PowerShell` MSIX for every user on the machine.
